@@ -6,6 +6,7 @@
   * [布局-2](https://github.com/rustlang-cn/Rustt/blob/main/Articles/%5B2022-05-04%5D%20%E5%8F%AF%E8%A7%86%E5%8C%96%20Rust%20%E5%90%84%E6%95%B0%E6%8D%AE%E7%B1%BB%E5%9E%8B%E7%9A%84%E5%86%85%E5%AD%98%E5%B8%83%E5%B1%80.md)
 * `lifetime`
   * [生命周期](https://xie.infoq.cn/article/caae061fc5578083b1c45e470)
+* [智能指针](https://course.rs/advance/smart-pointer/intro.html)
 * Rust std容器使用
 * 原子类
 * 并发
