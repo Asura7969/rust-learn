@@ -26,7 +26,34 @@
 
 #### 6、`&'static` 和 `T: 'static` 的用法有何区别？
 * `'static`: 表示该引用的生命周期和程序活得一样长（但该引用的变量受作用域限制）
-> [参考](https://course.rs/advance/lifetime/static.html)
+```rust
+fn print_it<T: Debug + 'static>(input: T)
+
+fn print_it1(input: impl Debug + 'static)
+
+#[derive(Debug)]
+struct MyData;
+
+static STATIC_MYDATA: MyData = MyData;
+const CONST_MYDATA: MyData = MyData;
+
+fn main() {
+    let i = 5;
+    let s:&'static str = "s";
+    // 传入值类型结果
+    // i: done
+    // &i: error
+    // s: done
+    // CONST_MYDATA: done
+    // &CONST_MYDATA: done
+    // &STATIC_MYDATA: done
+}
+```
+如上两个方法, 如果入参是所有权变量，则正常通过; 
+如果入参是引用变量, 若引用的生命周期不是`'static`, 或该引用指向的值不是 **static** 和 **常量** 会报错, 反之则不会
+> https://course.rs/advance/lifetime/static.html
+> 
+> https://doc.rust-lang.org/rust-by-example/scope/lifetime/static_lifetime.html
 
 #### 7、fn Fn FnMut FnOnce 的区别
 
