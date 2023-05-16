@@ -51,12 +51,42 @@ fn main() {
 ```
 如上两个方法, 如果入参是所有权变量，则正常通过; 
 如果入参是引用变量, 若引用的生命周期不是`'static`, 或该引用指向的值不是 **static** 和 **常量** 会报错, 反之则不会
+
+
+* `T: 'static` 应该读作 T以`'static`生命周期为界
+* 如果`T: 'static`，则`T`可以是具有`'static`的借用类型或所有权类型
+* 由于`T: 'static`包括拥有的类型，这意味着`T`
+  * 可以在运行时动态分配
+  * 不一定对整个程序有效
+  * 可以安全自由地变异（修改）
+  * 可以在运行时动态丢弃
+  * 可以有不同持续时间的生命周期
+
 > https://course.rs/advance/lifetime/static.html
 > 
 > https://doc.rust-lang.org/rust-by-example/scope/lifetime/static_lifetime.html
+> 
+> https://juejin.cn/post/7197043415144972346
 
 #### 7、fn Fn FnMut FnOnce 的区别
 
 #### 8、&str 、str 与 String
 
 
+#### 9、T 、&T 与 &mut T
+| Type Variable   | T                                                   | &T                          | &mut T                                  |
+|-----------------|-----------------------------------------------------|-----------------------------|-----------------------------------------|
+| Examples        | i32, &i32, &mut i32, <br/>&&i32, &mut &mut i32, ... | &i32, &&i32, &&mut i32, ... | &mut i32, &mut &mut i32, &mut &i32, ... |
+
+* `T`是`&T`和`&mut T`的超集
+* `&T`和`&mut T`是不相交集
+
+> [Common Rust Lifetime Misconceptions](https://juejin.cn/post/7197043415144972346#heading-4)
+
+
+#### 10、&'a T 与 T: 'a
+* `T: 'a`比`&'a`更通用、更灵活
+* `T: 'a`接受所有权类型，包含引用的所有权类型和引用
+* `&'a T` 只接受引用
+* 如果`T: 'static`, 由于`'static` >= `'a`，所以`'a`是所有
+> [&'a T 与 T: 'a](https://juejin.cn/post/7197043415144972346#heading-6)
