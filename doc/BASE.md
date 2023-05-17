@@ -90,7 +90,6 @@ fn main() {
 如上两个方法, 如果入参是所有权变量，则正常通过; 
 如果入参是引用变量, 若引用的生命周期不是`'static`, 或该引用指向的值不是 **static** 和 **常量** 会报错, 反之则不会
 
-
 * `T: 'static` 应该读作`T`以`'static`生命周期为界
 * 如果`T: 'static`，则`T`可以是具有`'static`的借用类型或所有权类型
 * 由于`T: 'static`包括拥有的类型，这意味着`T`
@@ -107,6 +106,9 @@ fn main() {
 > https://juejin.cn/post/7197043415144972346
 
 #### 7、fn Fn FnMut FnOnce 的区别
+* `Fn`: 是闭包的基本 Trait, 即闭包中仅有 reference ( &self)
+* `FnMut`: FnMut: 旨在强调传入的闭包中含有可 reference ( &mut self)
+* `FnOnce`: 旨在强调传入的闭包中含有 moved 进来的变量 ( self), 即意味着这个闭包只能被调用一次.
 
 #### 8、&str、str 与 String
 ```rust

@@ -29,7 +29,7 @@ impl IntoIterator for MyData {
 
 #[cfg(test)]
 mod iter_tests {
-    use crate::iter::{MyData, MyIter};
+    use crate::iter::MyData;
 
     #[test]
     #[ignore]
