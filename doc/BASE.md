@@ -1,14 +1,33 @@
 ### 基本问题
 
 #### 1、`Send` & `Sync`
-
+`Send`：可以在线程间安全的传递其所有权
+`Sync`：可以在线程间安全的共享(通过引用)
+* 裸指针两者都没实现，因为它本身就没有任何安全保证
+* `UnsafeCell`不是`Sync`，因此`Cell`和`RefCell`也不是
+* `Rc`两者都没实现(因为内部的引用计数器不是线程安全的)
 
 #### 2、常用的智能指针
-* **Box<T>**
-* **Rc<T>**
-* **Arc<T>**
-* **Cell<T>**
-* **RefCell<T>**
+* **Box<T>**: 可以将值分配到堆上
+```rust
+  let x: Box<i32> = Box::new(5);
+  let ptr: *mut i32 = Box::into_raw(x);
+  let x: Box<i32>  = unsafe { Box::from_raw(ptr) };
+```
+* **Rc<T>**: 引用计数类型，允许多所有权存在，只能用于同一线程内部（只读引用，不能修改内部值）
+* **Arc<T>**：原子化实现的引用计数，允许多所有权存在，可以在多线程内部使用（只读引用，不能修改内部值）
+* **Cell<T>**：适用于`T`实现`Copy`的情况
+```rust
+  use std::cell::Cell;
+  fn main() {
+      let c = Cell::new("asdf");
+      let one = c.get();
+      c.set("qwer");
+      let two = c.get();
+      println!("{},{}", one, two);
+  }
+```
+* **RefCell<T>**: 用于提供引用
 
 
 #### 3、常见的trait
@@ -20,12 +39,31 @@
 
 
 #### 4、`DST`
+动态大小类型(dynamically sized type), 编译时无法确定其大小,包括 str,[T]以及`Trait object`
 
 #### 5、什么是`trait object`
+大小不固定，通常使用引用的方式，引用类型大小固定，它由两个指针组成，因此占用两个指针大小，即两个机器字长
 
+```rust
+                     address
+                   /   vtable
+                 /   /
+               /   /
+            +–––+–––+
+stack frame │ • │ • │
+            +–│–+–––+
+              │      \
+              │       \
+              │        \
+            +–V–+––––+ +–-–+–––+
+       heap │Instance│ │ table │
+            +–––+––––+ +–––+–––+
+             
+```
+> [trait object](https://rust-book.junmajinlong.com/ch11/04_trait_object.html)
 
 #### 6、`&'static` 和 `T: 'static` 的用法有何区别？
-* `'static`: 表示该引用的生命周期和程序活得一样长（但该引用的变量受作用域限制）
+* `&'static`: 表示该引用的生命周期和程序活得一样长（但该引用的变量受作用域限制）
 ```rust
 fn print_it<T: Debug + 'static>(input: T)
 
@@ -53,7 +91,7 @@ fn main() {
 如果入参是引用变量, 若引用的生命周期不是`'static`, 或该引用指向的值不是 **static** 和 **常量** 会报错, 反之则不会
 
 
-* `T: 'static` 应该读作 T以`'static`生命周期为界
+* `T: 'static` 应该读作`T`以`'static`生命周期为界
 * 如果`T: 'static`，则`T`可以是具有`'static`的借用类型或所有权类型
 * 由于`T: 'static`包括拥有的类型，这意味着`T`
   * 可以在运行时动态分配
@@ -70,8 +108,49 @@ fn main() {
 
 #### 7、fn Fn FnMut FnOnce 的区别
 
-#### 8、&str 、str 与 String
+#### 8、&str、str 与 String
+```rust
+let mut my_name = "Pascal".to_string();
+my_name.push_str( " Precht");
 
+let last_name = &my_name[7..];
+```
+* String: 字符串, 指针（内存地址、长度、容量）在栈上, 数据在堆上
+* &str: 字符串切片引用, 指针在栈上（内存地址、长度）, 数据在编译后的二进制中, 具有static生命周期
+* str: 字符串切片, 栈上的指针不存容量,只存长度,容量由实际字符串管理,动态大小类型
+```rust
+                     buffer
+                   /   capacity
+                 /   /  length
+               /   /   /
+            +–––+–––+–––+
+stack frame │ • │ 8 │ 6 │ <- my_name: String
+            +–│–+–––+–––+
+              │
+            [–│–––––––– capacity –––––––––––]
+              │
+            +–V–+–––+–––+–––+–––+–––+–––+–––+
+       heap │ P │ a │ s │ c │ a │ l │   │   │
+            +–––+–––+–––+–––+–––+–––+–––+–––+
+            [––––––– length ––––––––]
+
+
+
+            my_name: String   last_name: &str
+            [––––––––––––]    [–––––––]
+            +–––+––––+––––+–––+–––+–––+
+stack frame │ • │ 16 │ 13 │   │ • │ 6 │
+            +–│–+––––+––––+–––+–│–+–––+
+              │                 │
+              │                 +–––––––––+
+              │                           │
+              │                           │
+              │                         [–│––––––– str –––––––––]
+            +–V–+–––+–––+–––+–––+–––+–––+–V–+–––+–––+–––+–––+–––+–––+–––+–––+
+       heap │ P │ a │ s │ c │ a │ l │   │ P │ r │ e │ c │ h │ t │   │   │   │
+            +–––+–––+–––+–––+–––+–––+–––+–––+–––+–––+–––+–––+–––+–––+–––+–––+
+```
+> [翻译 Rust中的String和&str](https://zhuanlan.zhihu.com/p/123278299)
 
 #### 9、T 、&T 与 &mut T
 | Type Variable   | T                                                   | &T                          | &mut T                                  |

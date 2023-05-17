@@ -14,6 +14,7 @@
 ## 三方库
 * tokio
   * [使用 Tokio 处理 CPU 密集型任务](https://github.com/rustlang-cn/Rustt/blob/main/Articles/%5B2022-04-20%5D%20%E4%BD%BF%E7%94%A8%20Tokio%20%E5%A4%84%E7%90%86%20CPU%20%E5%AF%86%E9%9B%86%E5%9E%8B%E4%BB%BB%E5%8A%A1.md)
+  * [tokio简介](https://rust-book.junmajinlong.com/ch100/00.html)
 * bytes
 * [async-rdma](https://rustmagazine.github.io/rust_magazine_2022/Q1/contribute/async-rdma.html)
 * [tracing](https://github.com/rustlang-cn/Rustt/blob/main/Articles/%5B2022-04-07%5D%20%E5%9C%A8%20Rust%20%E4%B8%AD%E4%BD%BF%E7%94%A8%20tracing%20%E8%87%AA%E5%AE%9A%E4%B9%89%E6%97%A5%E5%BF%97.md)
