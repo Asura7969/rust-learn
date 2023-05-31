@@ -21,4 +21,4 @@
 * lazy_static
 * [jni](https://rustcc.cn/article?id=4ca84a67-d972-4460-912e-a297ec5edc0a)
 * [thiserror](https://crates.io/crates/thiserror)
-* nom
+* [nom](https://crates.io/crates/nom)

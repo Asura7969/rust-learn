@@ -33,5 +33,6 @@ mod tests {
             r.err().map(|err| err.to_string()),
             Some("Value too large, valuse: `101`".to_string())
         )
+        1
     }
 }
