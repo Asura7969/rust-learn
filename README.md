@@ -22,3 +22,44 @@
 * [jni](https://rustcc.cn/article?id=4ca84a67-d972-4460-912e-a297ec5edc0a)
 * [thiserror](https://crates.io/crates/thiserror)
 * [nom](https://crates.io/crates/nom)
+
+
+## 项目规范
+### git hook
+> 拷贝或重新命名${project}/.git/hoos/pre-commit.sample
+```shell
+#!/bin/sh
+#
+# An example hook script to verify what is about to be committed.
+# Called by "git commit" with no arguments.  The hook should
+# exit with non-zero status after issuing an appropriate message if
+# it wants to stop the commit.
+#
+# To enable this hook, rename this file to "pre-commit".
+
+set -eu
+
+if ! cargo fmt -- --check
+then
+    echo "There are some code style issues."
+    echo "Run cargo fmt first."
+    exit 1
+fi
+
+if ! cargo clippy --all-targets -- -D warnings
+then
+    echo "There are some clippy issues."
+    exit 1
+fi
+
+if ! cargo test
+then
+    echo "There are some test issues."
+    exit 1
+fi
+
+exit 0
+```
+
+### github ci
+参考本项目 `.github/workflows`
