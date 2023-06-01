@@ -1,3 +1,4 @@
+#![allow(unused_variables, dead_code, missing_docs, clippy::let_unit_value)]
 /// https://clslaid.icu/implement-lockless-unsafe-queue/#%E5%AE%8C%E5%85%A8%E4%BB%A3%E7%A0%81%E4%B8%8E%E6%8E%A8%E8%8D%90%E9%98%85%E8%AF%BB
 use std::{
     ptr::null_mut,
@@ -124,5 +125,19 @@ impl<T> Drop for LinkedQueue<T> {
             // 释放头结点
             let _ = Box::from_raw(self.head.load(Ordering::Acquire));
         }
+    }
+}
+
+#[cfg(test)]
+mod link_test {
+    use super::*;
+
+    #[test]
+    fn test_simple() {
+        let mut queue: LinkedQueue<_> = LinkedQueue::new();
+        queue.push(2);
+        assert!(queue.size() == 1);
+        let op_item = queue.pop();
+        assert_eq!(op_item, Some(2));
     }
 }
