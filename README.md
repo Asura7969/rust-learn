@@ -60,6 +60,9 @@ fi
 
 exit 0
 ```
+> https://deaddabe.fr/blog/2021/09/29/git-pre-commit-hook-for-rust-projects/
+
+> [三方库 rusty-hook](https://github.com/swellaby/rusty-hook)
 
 ### github ci
 参考本项目 `.github/workflows`
