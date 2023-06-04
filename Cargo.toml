@@ -3,3 +3,4 @@ members = [
     "base",
     "thrid-lib"
 ]
+resolver = "2"

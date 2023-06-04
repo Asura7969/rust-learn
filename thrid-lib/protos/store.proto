@@ -1,0 +1,27 @@
+syntax = "proto3";
+package store;
+
+// import "google/protobuf/timestamp.proto";
+import "google/protobuf/wrappers.proto";
+
+message Msg {
+    int64 id = 1;
+    bytes data = 2;
+    optional int64 timestamp = 3;
+}
+
+message MsgId {
+    int64 id = 1;
+}
+
+message MsgTime {
+    int64 timestamp = 1;
+}
+
+service StoreService {
+    rpc get(MsgId) returns (Msg);
+    rpc send(Msg) returns (google.protobuf.BoolValue);
+    rpc delete(MsgId) returns (google.protobuf.BoolValue);
+    rpc subscribe(MsgId) returns (stream Msg);
+    rpc subscribeWithTime(MsgTime) returns (stream Msg);
+}
