@@ -1,3 +1,4 @@
+use super::pb::MsgTime;
 use crate::grpc::pb::store_service_server::{StoreService, StoreServiceServer};
 use crate::grpc::pb::{Msg, MsgId};
 use async_trait::async_trait;
@@ -8,9 +9,8 @@ use std::pin::Pin;
 use std::sync::{Arc, Mutex};
 use tonic::transport::Server;
 use tonic::{Code, Request, Response, Status};
+use tracing::{event, Level};
 use tracing_subscriber;
-
-use super::pb::MsgTime;
 
 #[allow(dead_code)]
 #[tokio::main]
@@ -55,20 +55,41 @@ impl StoreService for KvStoreService
 //     K: Send + Sync + std::hash::Hash + std::cmp::Eq + std::cmp::PartialEq + 'static,
 //     V: Send + Sync + 'static,
 {
-    async fn get(&self, _request: Request<MsgId>) -> Result<Response<Msg>, Status> {
-        todo!()
+    async fn get(&self, request: Request<MsgId>) -> Result<Response<Msg>, Status> {
+        let msg_id = request.into_inner();
+        match self.db.try_lock() {
+            Ok(lock) => {
+                if let Some(bytes) = lock.get(&msg_id.id) {
+                    let vec = bytes.to_vec();
+                    let vec = vec.as_slice();
+                    let deserialized: Msg = serde_json::from_slice(vec).unwrap();
+                    Ok(Response::new(deserialized))
+                } else {
+                    Err(Status::new(Code::NotFound, ""))
+                }
+            }
+            Err(err) => {
+                event!(Level::ERROR, "Failed to acquire lock!");
+                Err(Status::new(Code::FailedPrecondition, err.to_string()))
+            }
+        }
     }
     async fn send(&self, request: Request<Msg>) -> Result<Response<bool>, Status> {
         let msg = request.into_inner();
         let id = msg.id;
-        let data_vec = msg.data.to_vec();
+
+        let serialized = serde_json::to_vec(&msg).unwrap();
 
         match self.db.try_lock() {
             Ok(ref mut lock) => {
-                lock.insert(id, Bytes::from(data_vec));
+                lock.insert(id, Bytes::from(serialized));
                 Ok(Response::new(true))
             }
-            Err(_err) => Err(Status::new(Code::FailedPrecondition, "name is invalid")),
+
+            Err(err) => {
+                event!(Level::ERROR, "Failed to acquire lock!");
+                Err(Status::new(Code::FailedPrecondition, err.to_string()))
+            }
         }
     }
 
