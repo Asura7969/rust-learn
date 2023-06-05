@@ -2,11 +2,13 @@ use super::pb::MsgTime;
 use crate::grpc::pb::store_service_server::{StoreService, StoreServiceServer};
 use crate::grpc::pb::{Msg, MsgId};
 use async_trait::async_trait;
-use futures::Stream;
+
 use prost::bytes::Bytes;
 use std::collections::HashMap;
-use std::pin::Pin;
+
 use std::sync::{Arc, Mutex};
+use tokio::sync::mpsc::{self};
+use tokio_stream::wrappers::ReceiverStream;
 use tonic::transport::Server;
 use tonic::{Code, Request, Response, Status};
 use tracing::{event, Level};
@@ -39,8 +41,6 @@ type State = Arc<Mutex<HashMap<i64, Bytes>>>;
 struct KvStoreService {
     db: State,
 }
-
-type ResponseStream = Pin<Box<dyn Stream<Item = Result<Msg, Status>> + Send>>;
 
 impl Default for KvStoreService {
     fn default() -> KvStoreService {
@@ -109,49 +109,84 @@ impl StoreService for KvStoreService
         }
     }
 
-    type subscribeStream = ResponseStream;
+    type subscribeStream = ReceiverStream<Result<Msg, Status>>;
 
     async fn subscribe(
         &self,
         request: Request<MsgId>,
     ) -> Result<Response<Self::subscribeStream>, Status> {
-        let msg = request.into_inner();
-        let id = msg.id;
-        let ss = self.db.try_lock();
-        match ss {
-            Ok(ref lock) => {
-                let s = lock
+        let msg_id = request.into_inner();
+        let id = msg_id.id;
+        let msgs = match self.db.try_lock() {
+            Ok(lock) => {
+                let msges = lock
                     .iter()
                     .filter(|(nid, _)| **nid >= id)
-                    .map(|(_, bytes)| {
-                        let vec = bytes.to_vec();
-                        let vec = vec.as_slice();
-                        let deserialized: Msg = serde_json::from_slice(vec).unwrap();
-                        Ok(deserialized)
-                    });
-
-                // Pin<Box<dyn Stream<Item = Result<Msg, Status>> + Send>>;
-
-                let _output_stream: Pin<Box<dyn Stream<Item = Result<Msg, Status>>>> =
-                    Box::pin(tokio_stream::iter(s));
-                todo!()
-                // Ok(Response::new(
-                //     Box::pin(output_stream) as Self::subscribeStream
-                // ))
+                    .map(|(_, bytes)| bytes.into())
+                    .collect::<Vec<Msg>>();
+                Some(msges)
             }
-            Err(err) => {
+            Err(_err) => {
                 event!(Level::ERROR, "Failed to acquire lock!");
-                Err(Status::new(Code::FailedPrecondition, err.to_string()))
+                None
             }
-        }
+        };
+
+        return_stream(msgs).await
     }
 
-    type subscribeWithTimeStream = ResponseStream;
+    type subscribeWithTimeStream = ReceiverStream<Result<Msg, Status>>;
 
     async fn subscribe_with_time(
         &self,
-        _request: Request<MsgTime>,
+        request: Request<MsgTime>,
     ) -> Result<Response<Self::subscribeWithTimeStream>, Status> {
-        todo!()
+        let msg_time = request.into_inner();
+        let timestamp = msg_time.timestamp;
+        let msgs = match self.db.try_lock() {
+            Ok(lock) => {
+                let msges = lock
+                    .iter()
+                    .map(|(_, bytes)| bytes.into())
+                    .filter(|m: &Msg| {
+                        let top = m.timestamp;
+                        top.is_some_and(|t| t > timestamp)
+                    })
+                    .collect::<Vec<Msg>>();
+                Some(msges)
+            }
+            Err(_err) => {
+                event!(Level::ERROR, "Failed to acquire lock!");
+                None
+            }
+        };
+
+        return_stream(msgs).await
     }
+}
+
+impl From<&Bytes> for Msg {
+    fn from(bytes: &Bytes) -> Self {
+        let vec = bytes.to_vec();
+        let vec = vec.as_slice();
+        serde_json::from_slice(vec).unwrap()
+    }
+}
+
+async fn return_stream(
+    msgs: Option<Vec<Msg>>,
+) -> Result<Response<ReceiverStream<Result<Msg, Status>>>, Status> {
+    let (tx, rx) = mpsc::channel(4);
+
+    if let Some(messages) = msgs {
+        for msg in messages {
+            tx.send(Ok(msg)).await.unwrap();
+        }
+    } else {
+        tx.send(Err(Status::new(Code::NotFound, "not found resource!")))
+            .await
+            .unwrap();
+    }
+
+    Ok(Response::new(ReceiverStream::new(rx)))
 }
