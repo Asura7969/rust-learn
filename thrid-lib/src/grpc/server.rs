@@ -93,17 +93,57 @@ impl StoreService for KvStoreService
         }
     }
 
-    async fn delete(&self, _request: Request<MsgId>) -> Result<Response<bool>, Status> {
-        todo!()
+    async fn delete(&self, request: Request<MsgId>) -> Result<Response<bool>, Status> {
+        let msg = request.into_inner();
+        let id = msg.id;
+        match self.db.try_lock() {
+            Ok(ref mut lock) => {
+                lock.remove(&id);
+                Ok(Response::new(true))
+            }
+
+            Err(err) => {
+                event!(Level::ERROR, "Failed to acquire lock!");
+                Err(Status::new(Code::FailedPrecondition, err.to_string()))
+            }
+        }
     }
 
     type subscribeStream = ResponseStream;
 
     async fn subscribe(
         &self,
-        _request: Request<MsgId>,
+        request: Request<MsgId>,
     ) -> Result<Response<Self::subscribeStream>, Status> {
-        todo!()
+        let msg = request.into_inner();
+        let id = msg.id;
+        let ss = self.db.try_lock();
+        match ss {
+            Ok(ref lock) => {
+                let s = lock
+                    .iter()
+                    .filter(|(nid, _)| **nid >= id)
+                    .map(|(_, bytes)| {
+                        let vec = bytes.to_vec();
+                        let vec = vec.as_slice();
+                        let deserialized: Msg = serde_json::from_slice(vec).unwrap();
+                        Ok(deserialized)
+                    });
+
+                // Pin<Box<dyn Stream<Item = Result<Msg, Status>> + Send>>;
+
+                let _output_stream: Pin<Box<dyn Stream<Item = Result<Msg, Status>>>> =
+                    Box::pin(tokio_stream::iter(s));
+                todo!()
+                // Ok(Response::new(
+                //     Box::pin(output_stream) as Self::subscribeStream
+                // ))
+            }
+            Err(err) => {
+                event!(Level::ERROR, "Failed to acquire lock!");
+                Err(Status::new(Code::FailedPrecondition, err.to_string()))
+            }
+        }
     }
 
     type subscribeWithTimeStream = ResponseStream;
