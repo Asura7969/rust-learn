@@ -13,8 +13,11 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Set up Rust
-        uses: actions/checkout@v3
+      - uses: actions/checkout@v3
+      - uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          override: true
       - name: Install Protoc
         uses: arduino/setup-protoc@v1
       - name: Install cargo-audit
