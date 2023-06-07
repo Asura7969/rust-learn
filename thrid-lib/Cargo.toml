@@ -24,8 +24,10 @@ arrow = "41.0.0"
 arrow-csv = "41.0.0"
 arrow-schema = "41.0.0"
 arrow-array = "41.0.0"
-parquet = "41.0.0"
+parquet = {version= "41.0.0", features = ["async"]}
 tempfile = "3.5.0"
+anyhow = "1.0.71"
+arrow-cast = { version = "41.0.0", features = ["comfy-table", "prettyprint"] }
 
 [build-dependencies]
 proto-builder-trait = "0.5.1"
