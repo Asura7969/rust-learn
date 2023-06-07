@@ -1,17 +1,55 @@
+pub mod ipc;
+
 #[cfg(test)]
 mod tests {
     use anyhow::{Ok, Result};
     use arrow::array::*;
+    use arrow_array::RecordBatch;
     use arrow_cast::pretty::print_batches;
     use arrow_csv::reader::Format;
     use arrow_csv::ReaderBuilder;
     use arrow_schema::*;
     use futures::TryStreamExt;
-    use parquet::arrow::arrow_reader::{ArrowPredicateFn, RowFilter};
-    use parquet::arrow::{ParquetRecordBatchStreamBuilder, ProjectionMask};
+    use parquet::arrow::arrow_reader::{
+        ArrowPredicateFn, ParquetRecordBatchReaderBuilder, RowFilter,
+    };
+    use parquet::arrow::{ArrowWriter, ParquetRecordBatchStreamBuilder, ProjectionMask};
     use std::io::Seek;
     use std::time::SystemTime;
     use std::{fs::File, sync::Arc};
+    use tempfile::NamedTempFile;
+
+    #[test]
+    fn test_write_and_read_parquet_file() {
+        // write file
+        let ids = Int32Array::from(vec![1, 2, 3, 4]);
+        let schema = Arc::new(Schema::new(vec![Field::new("id", DataType::Int32, false)]));
+
+        let file = NamedTempFile::new().unwrap();
+
+        let read_file = file.reopen().unwrap();
+
+        println!("{:?}", read_file);
+
+        let batch = RecordBatch::try_new(Arc::clone(&schema), vec![Arc::new(ids)]).unwrap();
+
+        let batches = vec![batch];
+        let mut writer = ArrowWriter::try_new(file, Arc::clone(&schema), None).unwrap();
+
+        for batch in batches {
+            writer.write(&batch).expect("Writing batch");
+        }
+
+        writer.close().unwrap();
+
+        // read file
+        let builder = ParquetRecordBatchReaderBuilder::try_new(read_file).unwrap();
+        println!("Converted arrow schema is: {}", builder.schema());
+        let mut reader = builder.build().unwrap();
+        let record_batch = reader.next().unwrap().unwrap();
+
+        print_batches(&[record_batch]).unwrap();
+    }
 
     #[tokio::test]
     async fn test_async_read_parquet_file() -> Result<()> {

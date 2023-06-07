@@ -22,6 +22,7 @@ tokio-stream = "0.1.14"
 tokio-stream-ext = "0.1.5"
 arrow = "41.0.0"
 arrow-csv = "41.0.0"
+arrow-ipc = "41.0.0"
 arrow-schema = "41.0.0"
 arrow-array = "41.0.0"
 parquet = {version= "41.0.0", features = ["async"]}
