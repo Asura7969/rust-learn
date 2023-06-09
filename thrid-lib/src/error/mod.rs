@@ -1,5 +1,5 @@
 use thiserror::Error;
-
+// https://juejin.cn/post/7097023377864392718
 #[derive(Error, Debug)]
 pub enum MyError {
     #[error("data store disconnected")]
