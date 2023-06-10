@@ -171,3 +171,5 @@ stack frame │ • │ 16 │ 13 │   │ • │ 6 │
 * `&'a T` 只接受引用
 * 如果`T: 'static`, 由于`'static` >= `'a`，所以`'a`是所有
 > [&'a T 与 T: 'a](https://juejin.cn/post/7197043415144972346#heading-6)
+
+#### [Rust异步](https://xie.infoq.cn/article/8ca67f4929c89e0013f83ebc3)
