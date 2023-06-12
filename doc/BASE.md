@@ -193,3 +193,52 @@ stack frame │ • │ 16 │ 13 │   │ • │ 6 │
 ## 11、[Rust异步](https://xie.infoq.cn/article/8ca67f4929c89e0013f83ebc3)
 
 ## 12、[Rust 的 Pin 与 Unpin](https://folyd.com/blog/rust-pin-unpin/)
+
+## 13、Object safety
+
+> 为了解决在代码编写中，一些原本只能使用trait泛型的地方地方能够使用trait对象来替代，详情见[RFC-255](https://github.com/rust-lang/rfcs/blob/master/text/0255-object-safety.md)
+
+满足`Object Safe`的条件:
+
+* 所有方法都是`Object Safe`的
+* Trait本身没有`Self: Sized`的约束
+
+什么方法是`Object Safe`?
+
+* 函数有Self: Sized约束时，或者或者符合第2点要求
+  *（1）函数不能有泛型参数
+  *（2）返回值不能使用Self类型
+
+```rust
+fn main() {
+    let foo = Foo;
+    static_dispatch(&foo);
+    dynamic_dispatch(&foo);
+}
+
+#[derive(Debug)]
+struct Foo;
+
+trait Bar {
+    fn baz(&self);
+}
+
+impl Bar for Foo {
+    fn baz(&self) {
+        println!("{:?}", self);
+    }
+}
+
+// 静态分发
+fn static_dispatch<T>(t: &T) where T: Bar {
+    t.baz();
+}
+
+// 动态分发
+fn dynamic_dispatch(t: &dyn Bar) {
+    t.baz();
+}
+```
+
+`静态分发`，编译器会使代码膨胀
+`动态分发`，会有运行时开销，运行时需要从虚表中寻找对应函数
