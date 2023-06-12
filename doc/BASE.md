@@ -190,6 +190,6 @@ stack frame │ • │ 16 │ 13 │   │ • │ 6 │
 
 > [&'a T 与 T: 'a](https://juejin.cn/post/7197043415144972346#heading-6)
 
-## [Rust异步](https://xie.infoq.cn/article/8ca67f4929c89e0013f83ebc3)
+## 11、[Rust异步](https://xie.infoq.cn/article/8ca67f4929c89e0013f83ebc3)
 
-## [Rust 的 Pin 与 Unpin](https://folyd.com/blog/rust-pin-unpin/)
+## 12、[Rust 的 Pin 与 Unpin](https://folyd.com/blog/rust-pin-unpin/)
