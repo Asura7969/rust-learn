@@ -70,6 +70,7 @@ mod connector {
 #[allow(dead_code)]
 #[cfg(test)]
 mod turmoil_axum_test {
+    use super::*;
     use axum::extract::Path;
     use axum::response::Response;
     use axum::routing::get;
