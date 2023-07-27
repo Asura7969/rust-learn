@@ -29,6 +29,12 @@ parquet = {version= "41.0.0", features = ["async"]}
 tempfile = "3.5.0"
 anyhow = "1.0.71"
 arrow-cast = { version = "41.0.0", features = ["comfy-table", "prettyprint"] }
+turmoil = "0.5.6"
+axum = "0.6"
+hyper = { version = "0.14", features = ["full"] }
+async-stream = "0.3"
+tower = "0.4"
+
 
 [build-dependencies]
 proto-builder-trait = "0.5.1"

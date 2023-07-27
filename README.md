@@ -9,7 +9,7 @@
   * [生命周期](https://xie.infoq.cn/article/caae061fc5578083b1c45e470)
 * [智能指针](https://course.rs/advance/smart-pointer/intro.html)
 * Rust std容器使用
-* 原子类
+* [原子类](https://github.com/Asura7969/Rust_Atomics_and_Locks/blob/main/3_Memory_Ordering.md)
 * 并发
 
 ## 三方库
@@ -25,6 +25,7 @@
 * [thiserror](https://crates.io/crates/thiserror)
 * [nom](https://crates.io/crates/nom)
 * [tempfile](https://crates.io/crates/tempfile)
+* [Turmoil: 分布式测试框架](https://github.com/tokio-rs/turmoil/tree/main)
 
 ## 项目规范
 
