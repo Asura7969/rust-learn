@@ -34,7 +34,12 @@ axum = "0.6"
 hyper = { version = "0.14", features = ["full"] }
 async-stream = "0.3"
 tower = "0.4"
-
+datafusion = "28.0.0"
+datafusion-common = "28.0.0"
+datafusion-expr = "28.0.0"
+datafusion-optimizer = "28.0.0"
+datafusion-sql = "28.0.0"
+nom = "7.1.3"
 
 [build-dependencies]
 proto-builder-trait = "0.5.1"

@@ -1,0 +1,20 @@
+{
+  "id" : 0,
+  "fields" : [ {
+    "id" : 0,
+    "name" : "order_id",
+    "type" : "STRING NOT NULL"
+  }, {
+    "id" : 1,
+    "name" : "stub_group_id",
+    "type" : "STRING"
+  } ],
+  "highestFieldId" : 1,
+  "partitionKeys" : [ ],
+  "primaryKeys" : [ "order_id" ],
+  "options" : {
+    "bucket" : "2",
+    "changelog-producer" : "input",
+    "type" : "paimon"
+  }
+}
