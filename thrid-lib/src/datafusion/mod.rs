@@ -179,29 +179,20 @@ impl Field {
     }
 }
 
-#[derive(Serialize, PartialEq, Eq, Debug)]
-struct ManifestFileMeta<'de> {
+#[derive(Serialize, Deserialize, PartialEq, Eq, Debug)]
+struct ManifestFileMeta {
     file_name: String,
     file_size: i64,
     num_added_files: i64,
     num_deleted_files: i64,
-    partition_stats: Vec<PartitionStat<'de>>,
+    partition_stats: Vec<PartitionStat>,
     schema_id: i64,
 }
 
-impl<'a, 'de> Deserialize<'de> for ManifestFileMeta<'a> {
-    fn deserialize<D>(_deserializer: D) -> std::result::Result<Self, D::Error>
-    where
-        D: serde::Deserializer<'de>,
-    {
-        todo!()
-    }
-}
-
 #[derive(Serialize, Deserialize, PartialEq, Eq, Debug)]
-struct PartitionStat<'a> {
-    min_values: &'a [u8],
-    max_values: &'a [u8],
+struct PartitionStat {
+    min_values: Vec<u8>,
+    max_values: Vec<u8>,
     null_counts: Option<Vec<i64>>,
 }
 
