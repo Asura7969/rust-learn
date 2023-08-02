@@ -179,22 +179,74 @@ impl Field {
     }
 }
 
-#[allow(dead_code)]
-struct ManifestFileMeta {
+#[derive(Serialize, PartialEq, Eq, Debug)]
+struct ManifestFileMeta<'de> {
     file_name: String,
     file_size: i64,
     num_added_files: i64,
     num_deleted_files: i64,
-    partition_stats: Vec<PartitionStat>,
+    partition_stats: Vec<PartitionStat<'de>>,
     schema_id: i64,
 }
 
-#[allow(dead_code)]
-struct PartitionStat {
-    // min_values: Bytes,
-    // max_values: Bytes,
-    // null_counts: Vec<i64>,
+impl<'a, 'de> Deserialize<'de> for ManifestFileMeta<'a> {
+    fn deserialize<D>(_deserializer: D) -> std::result::Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        todo!()
+    }
 }
+
+#[derive(Serialize, Deserialize, PartialEq, Eq, Debug)]
+struct PartitionStat<'a> {
+    min_values: &'a [u8],
+    max_values: &'a [u8],
+    null_counts: Option<Vec<i64>>,
+}
+
+// https://www.rectcircle.cn/posts/rust-serde/
+// use serde::ser::{Serialize as SSerialize, SerializeStruct, Serializer};
+
+// impl<'a> Serialize for PartitionStat<'a> {
+//     fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
+//     where
+//         S: serde::Serializer,
+//     {
+//         let mut state = serializer.serialize_struct("PartitionStat", 3)?;
+//         state.serialize_field("min_values", {
+//             // 对 bytes 添加了一层包装，用来代理调用 `serde_bytes::serialize` 方法
+//             // 这样就能 使用高效的 字节数组序列化
+//             struct SerializeWith<'__a, 'a: '__a> {
+//                 values: (&'__a &'a [u8],),
+//                 phantom: serde::export::PhantomData<PartitionStat<'a>>,
+//             }
+//             impl<'__a, 'a: '__a> serde::Serialize for SerializeWith<'__a, 'a> {
+//                 fn serialize<__S>(&self, __s: __S) -> serde::export::Result<__S::Ok, __S::Error>
+//                 where
+//                     __S: serde::Serializer,
+//                 {
+//                     serde_bytes::serialize(self.values.0, __s)
+//                 }
+//             }
+//             &SerializeWith {
+//                 values: (&self.min_values,),
+//                 phantom: serde::export::PhantomData::<PartitionStat<'a>>,
+//             }
+//         })?;
+
+//         todo!()
+//     }
+// }
+
+// impl<'de> Deserialize<'de> for PartitionStat<'de> {
+//     fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
+//     where
+//         D: serde::Deserializer<'de>,
+//     {
+//         todo!()
+//     }
+// }
 
 #[allow(dead_code)]
 pub(crate) fn read_schema(path: &str) -> Result<BTreeMap<String, PaimonSchema>> {
