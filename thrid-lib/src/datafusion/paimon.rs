@@ -22,7 +22,7 @@ use std::sync::{Arc, Mutex};
 use std::time::Duration;
 use tokio::time::timeout;
 
-use super::{read_schema, to_schema_ref};
+use super::{get_latest_metedata_file, to_schema_ref};
 
 /// This example demonstrates executing a simple query against a custom datasource
 #[tokio::main]
@@ -155,13 +155,12 @@ impl TableProvider for PaimonDataSource {
     }
 
     fn schema(&self) -> SchemaRef {
-        let mut schema_tree = read_schema(self.path.as_str()).expect("read schema failed ...");
-        if let Some(mut entry) = schema_tree.last_entry() {
-            let schema = entry.get_mut();
-            to_schema_ref(schema)
-        } else {
-            panic!("paimon dir no schema file ... ")
-        }
+        let db_path = self.path.as_str();
+        let snapshot = get_latest_metedata_file(db_path).expect("read snapshot failed ...");
+        let mut schema = snapshot
+            .get_schema(db_path)
+            .expect("read schema failed ...");
+        to_schema_ref(&mut schema)
     }
 
     fn table_type(&self) -> TableType {
