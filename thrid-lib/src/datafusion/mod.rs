@@ -164,7 +164,9 @@ impl Field {
 }
 
 #[derive(Serialize, Deserialize, PartialEq, Eq, Debug)]
-struct ManifestFileMeta {
+pub(crate) struct ManifestFileMeta {
+    #[serde(rename = "_VERSION")]
+    version: i32,
     #[serde(rename = "_FILE_NAME")]
     file_name: String,
     #[serde(rename = "_FILE_SIZE")]
@@ -174,16 +176,16 @@ struct ManifestFileMeta {
     #[serde(rename = "_NUM_DELETED_FILES")]
     num_deleted_files: i64,
     #[serde(rename = "_PARTITION_STATS")]
-    partition_stats: Vec<PartitionStat>,
+    partition_stats: Option<PartitionStat>,
     #[serde(rename = "_SCHEMA_ID")]
     schema_id: i64,
 }
 
 #[derive(Serialize, Deserialize, PartialEq, Eq, Debug)]
-struct PartitionStat {
-    #[serde(rename = "_MIN_VALUES")]
+pub(crate) struct PartitionStat {
+    #[serde(rename = "_MIN_VALUES", with = "serde_bytes")]
     min_values: Vec<u8>,
-    #[serde(rename = "_MAX_VALUES")]
+    #[serde(rename = "_MAX_VALUES", with = "serde_bytes")]
     max_values: Vec<u8>,
     #[serde(rename = "_NULL_COUNTS")]
     null_counts: Option<Vec<i64>>,

@@ -32,55 +32,36 @@ fn build_reader(path: &str, _schema: SchemaRef) -> Reader<File> {
 
 #[cfg(test)]
 mod tests {
-    use std::sync::Arc;
+    use std::fs;
 
     use anyhow::Result;
-    use datafusion::{
-        arrow::datatypes::{DataType, Field, Fields, Schema},
-        prelude::{AvroReadOptions, SessionContext},
-    };
+    use apache_avro::{from_value, Reader as AvroReader};
+
+    use crate::datafusion::ManifestFileMeta;
 
     #[tokio::test]
     async fn read_avro() -> Result<()> {
-        let fields = vec![
-            Field::new("_MIN_VALUES", DataType::Binary, false),
-            Field::new("_MAX_VALUES", DataType::Binary, false),
-            Field::new("_NULL_COUNTS", DataType::LargeBinary, false),
-        ];
+        let path = "src/test/paimon/default.db/ods_mysql_paimon_points_5/manifest/manifest-list-a2f5adb6-adf1-4026-be6a-a01b5fb2cebd-12";
+        let r = fs::File::open(path)?;
+        let reader = AvroReader::new(r)?;
+        let writer_schema = reader.writer_schema().clone();
+        println!("schema: {:?}", writer_schema);
 
-        let _schema = Arc::new(Schema::new(vec![
-            Field::new("_VERSION", DataType::Int32, false),
-            Field::new("_FILE_NAME", DataType::Utf8, false),
-            Field::new("_FILE_SIZE", DataType::Int64, false),
-            Field::new("_NUM_ADDED_FILES", DataType::Int64, false),
-            Field::new("_NUM_DELETED_FILES", DataType::Int64, false),
-            Field::new(
-                "_PARTITION_STATS",
-                DataType::Struct(Fields::from(fields)),
-                true,
-            ),
-            Field::new("_SCHEMA_ID", DataType::Int64, false),
-        ]));
+        println!("");
+        println!("");
+        println!("");
 
-        // let file_path = "src/test/paimon/default.db/ods_mysql_paimon_points_5/manifest/manifest-list-a2f5adb6-adf1-4026-be6a-a01b5fb2cebd-3";
-        // let mut reader = build_reader(file_path, schema);
-        // let batch = reader.next().unwrap().unwrap();
-        // println!("batch: {:?}", batch);
-        // let schema = reader.schema();
-        // println!("schema: {schema}");
+        let mut manifestlist = Vec::new();
 
-        let ctx = SessionContext::new();
-        let op = AvroReadOptions {
-            schema: None,
-            file_extension: " ",
-            table_partition_cols: vec![],
-            infinite: false,
-        };
+        for value in reader {
+            let record = value.unwrap();
+            let meta: ManifestFileMeta = from_value(&record)?;
+            manifestlist.push(meta);
+        }
 
-        ctx.register_avro("manifestlist", "src/test/paimon/default.db/ods_mysql_paimon_points_5/manifest/manifest-list-a2f5adb6-adf1-4026-be6a-a01b5fb2cebd-13", op)
-            .await?;
-        let df = ctx.sql("SELECT * FROM manifestlist").await?;
-        df.show_limit(10).await?;
+        let serialized = serde_json::to_string_pretty(&manifestlist).unwrap();
+        println!("{}", serialized);
+
         Ok(())
     }
 }
