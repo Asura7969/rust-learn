@@ -1,4 +1,5 @@
 use anyhow::{Ok, Result};
+use chrono::Local;
 use datafusion::arrow::datatypes::{DataType, Field as AField, Schema, SchemaRef, TimeUnit};
 use nom::{bytes::complete::take_until, error::ErrorKind, IResult};
 use serde::{Deserialize, Serialize};
@@ -9,7 +10,7 @@ use std::{
 
 use crate::datafusion::utils::read_to_string;
 
-use self::reader::FileFormat;
+use self::reader::{manifest_list, FileFormat};
 
 mod paimon;
 mod reader;
@@ -117,6 +118,16 @@ impl Snapshot {
     }
 }
 
+#[allow(dead_code)]
+fn get_manifest_list(
+    table_path: &str,
+    file_name: &str,
+    format: &FileFormat,
+) -> Result<Vec<ManifestFileMeta>> {
+    let path = format!("{}/manifest/{}", table_path, file_name);
+    manifest_list(path.as_str(), format)
+}
+
 #[derive(Serialize, Deserialize, PartialEq, Eq, Debug)]
 pub struct PaimonSchema {
     id: u64,
@@ -218,30 +229,9 @@ pub(crate) fn to_schema_ref(schema: &mut PaimonSchema) -> SchemaRef {
     SchemaRef::new(Schema::new(fields))
 }
 
-// pub enum MyDataType {
-//     BINARY(i32), // BINARY(%d)
-//     BIGINT,
-//     BOOLEAN,
-//     Char, // CHAR(%d)
-//     DATE,
-//     DECIMAL(f64, f64), // DECIMAL(%d, %d)
-//     DOUBLE,
-//     FLOAT,
-//     INT,
-//     TimestampWithLocalTimeZone(i32), // TIMESTAMP(%d) WITH LOCAL TIME ZONE
-//     MAP,
-//     SMALLINT,
-//     TIME(i32),      // TIME(%d)
-//     TIMESTAMP(i32), // TIMESTAMP(%d)
-//     TINYINT,
-//     VARBINARY(i32), // VARBINARY(%d)
-//     VARCHAR(i32),   // VARCHAR(%d)
-//     ARRAY(String),  // ARRAY(%s)
-// }
-
 fn from(value: &str) -> (DataType, bool) {
     let nullable = value.ends_with("NOT NULL");
-    let (datatype_str, num) = match extract_num(value) {
+    let (datatype_str, tuple2) = match extract_num(value) {
         core::result::Result::Ok((input, num)) => (input, Some(num)),
         core::result::Result::Err(err) => {
             if let nom::Err::Error(v) = err {
@@ -251,25 +241,55 @@ fn from(value: &str) -> (DataType, bool) {
             }
         }
     };
-    let num = num.map_or(i32::MAX, |v| v);
-    // TODO: 完善更多类型数据
+    let tuple2 = tuple2.map_or((i32::MAX, None), |v| v);
     let data_type = match datatype_str {
-        "STRING" => DataType::Utf8,
-        "BYTES" => DataType::FixedSizeBinary(num),
-        "TIMESTAMP" => DataType::Timestamp(TimeUnit::Millisecond, None),
-        "INT" => DataType::Int32,
-        "TIME" => DataType::Time64(TimeUnit::Millisecond),
+        "STRING" | "VARCHAR" | "CHAR" | "TEXT" => DataType::Utf8,
+        "TINYINT" => DataType::UInt8,
+        "SMALLINT" => DataType::UInt16,
+        "INT" | "INTEGER" => DataType::UInt32,
+        "BIGINT" => DataType::UInt64,
+        "FLOAT" | "REAL" => DataType::Float32,
+        "DECIMAL" => DataType::Decimal256(tuple2.0 as u8, tuple2.1.map_or(i8::MAX, |v| v as i8)),
+        "BOOLEAN" => DataType::Boolean,
+        "DOUBLE" => DataType::Float64,
+        "VARBINARY" | "BYTES" | "BINARY" => DataType::Binary,
+        "DATE" => DataType::Date32,
+        "TIME" => DataType::Time64(get_time_unit(tuple2.0)),
+        "TIMESTAMP" => {
+            let unit = get_time_unit(tuple2.0);
+            if value.contains("WITH LOCAL TIME ZONE") {
+                DataType::Timestamp(unit, Some(time_zone().into()))
+            } else {
+                DataType::Timestamp(unit, None)
+            }
+        }
         data => panic!("Not support datatype: {}", data),
     };
     (data_type, nullable)
 }
 
-/// input-1: STRING(10) NOT NULL -> (STRING, 10)
+fn get_time_unit(v: i32) -> TimeUnit {
+    match v {
+        0 => TimeUnit::Second,
+        1..=3 => TimeUnit::Millisecond,
+        4..=6 => TimeUnit::Microsecond,
+        7..=9 => TimeUnit::Nanosecond,
+        _ => panic!(""),
+    }
+}
+
+fn time_zone() -> String {
+    Local::now().format("%:z").to_string()
+}
+
+/// input-1: STRING(10) NOT NULL -> (STRING, (10, None))
 ///
-/// input-2: STRING(10) -> (STRING, 10)
+/// input-2: STRING(10) -> (STRING, (10, None))
 ///
 /// input-3: STRING -> Err(STRING)
-fn extract_num(input: &str) -> IResult<&str, i32> {
+///
+/// input-4: DECIMAL(1, 38) -> (DECIMAL, (1, Some(38)))
+fn extract_num(input: &str) -> IResult<&str, (i32, Option<i32>)> {
     let input = match input.find(" NOT NULL") {
         Some(idx) => input.split_at(idx).0,
         _ => input,
@@ -279,13 +299,23 @@ fn extract_num(input: &str) -> IResult<&str, i32> {
         let split_index = input.find('(').expect("");
         let (datatype_str, fix_num) = input.split_at(split_index + 1);
         let (_, fix_num) = take_until(")")(fix_num)?;
-        let fix_num = fix_num.to_string();
-        let fix_num = fix_num
-            .parse::<i32>()
-            .unwrap_or_else(|_| panic!("transform number error: {}", fix_num));
+        let sp = fix_num
+            .split(',')
+            .map(|s| {
+                let s = s.trim().to_string();
+                s.parse::<i32>()
+                    .unwrap_or_else(|_| panic!("transform number error: {}", fix_num))
+            })
+            .collect::<Vec<i32>>();
+        let tuple = match sp[..] {
+            [a, b] => (a, Some(b)),
+            [a] => (a, None),
+            _ => panic!("paimon datatype has multiple qualifications"),
+        };
+
         let datatype_str = datatype_str.as_bytes();
         let datatype_str = &datatype_str[0..datatype_str.len() - 1];
-        core::result::Result::Ok((std::str::from_utf8(datatype_str).unwrap(), fix_num))
+        core::result::Result::Ok((std::str::from_utf8(datatype_str).unwrap(), tuple))
     } else {
         Err(nom::Err::Error(nom::error::Error::new(
             input,
@@ -312,10 +342,16 @@ mod tests {
     #[test]
     fn extract_num_test() {
         let input = "STRING(10) NOT NULL";
-        assert_eq!(extract_num(input), core::result::Result::Ok(("STRING", 10)));
+        assert_eq!(
+            extract_num(input),
+            core::result::Result::Ok(("STRING", (10, None)))
+        );
 
         let input = "STRING(20)";
-        assert_eq!(extract_num(input), core::result::Result::Ok(("STRING", 20)));
+        assert_eq!(
+            extract_num(input),
+            core::result::Result::Ok(("STRING", (20, None)))
+        );
 
         let input = "STRING";
         assert_eq!(
@@ -324,6 +360,11 @@ mod tests {
                 input,
                 ErrorKind::Fail,
             )))
+        );
+        let input = "DECIMAL(1, 38)";
+        assert_eq!(
+            extract_num(input),
+            core::result::Result::Ok(("DECIMAL", (1, Some(38))))
         );
     }
 
