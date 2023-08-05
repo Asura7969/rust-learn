@@ -155,10 +155,10 @@ impl TableProvider for PaimonDataSource {
     }
 
     fn schema(&self) -> SchemaRef {
-        let db_path = self.path.as_str();
-        let snapshot = get_latest_metedata_file(db_path).expect("read snapshot failed ...");
+        let table_path = self.path.as_str();
+        let snapshot = get_latest_metedata_file(table_path).expect("read snapshot failed ...");
         let mut schema = snapshot
-            .get_schema(db_path)
+            .get_schema(table_path)
             .expect("read schema failed ...");
         to_schema_ref(&mut schema)
     }

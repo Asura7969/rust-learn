@@ -4,7 +4,7 @@ use anyhow::Result;
 use apache_avro::{from_value, Reader as AvroReader};
 use serde::{Deserialize, Serialize};
 
-use crate::datafusion::ManifestFileMeta;
+use crate::datafusion::paimon::ManifestFileMeta;
 pub(crate) enum FileFormat {
     #[allow(dead_code)]
     Parquet,
@@ -54,7 +54,7 @@ fn read_avro<T: Serialize + for<'a> Deserialize<'a>>(path: &str) -> Result<Vec<T
 #[cfg(test)]
 mod tests {
 
-    use crate::datafusion::manifest::ManifestEntry;
+    use crate::datafusion::paimon::manifest::ManifestEntry;
 
     use super::*;
 

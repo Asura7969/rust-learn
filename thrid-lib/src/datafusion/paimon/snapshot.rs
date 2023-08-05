@@ -4,7 +4,7 @@ use anyhow::{Ok, Result};
 use serde::{Deserialize, Serialize};
 
 use super::{CommitKind, PaimonSchema};
-use crate::datafusion::utils::read_to_string;
+use crate::datafusion::paimon::utils::read_to_string;
 
 #[allow(dead_code)]
 const SNAPSHOT_PREFIX: &str = "snapshot-";
@@ -60,7 +60,7 @@ pub(crate) struct SnapshotManager {
 
 #[allow(dead_code)]
 impl SnapshotManager {
-    fn new(table_path: &str) -> SnapshotManager {
+    pub(crate) fn new(table_path: &str) -> SnapshotManager {
         Self {
             table_path: table_path.to_string(),
         }
@@ -89,7 +89,7 @@ impl SnapshotManager {
         }
     }
 
-    fn latest_snapshot(&self) -> Option<Snapshot> {
+    pub(crate) fn latest_snapshot(&self) -> Option<Snapshot> {
         if let Some(id) = self.latest_snapshot_id() {
             match self.snapshot(id) {
                 core::result::Result::Ok(s) => Some(s),
@@ -103,7 +103,7 @@ impl SnapshotManager {
 
 #[cfg(test)]
 mod tests {
-    use crate::datafusion::get_latest_metedata_file;
+    use crate::datafusion::paimon::get_latest_metedata_file;
 
     use super::*;
 
