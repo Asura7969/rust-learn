@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 use super::PartitionStat;
 
 #[derive(Serialize, Deserialize, PartialEq, Eq, Debug)]
-pub(crate) struct ManifestEntry {
+pub struct ManifestEntry {
     #[serde(rename = "_KIND")]
     kind: i32,
     #[serde(rename = "_PARTITION", with = "serde_bytes")]
@@ -17,7 +17,7 @@ pub(crate) struct ManifestEntry {
 }
 
 #[derive(Serialize, Deserialize, PartialEq, Eq, Debug)]
-pub(crate) struct DataFileMeta {
+pub struct DataFileMeta {
     #[serde(rename = "_FILE_NAME")]
     file_name: String,
     #[serde(rename = "_FILE_SIZE")]

@@ -3,8 +3,8 @@ use std::collections::HashMap;
 use anyhow::{Ok, Result};
 use serde::{Deserialize, Serialize};
 
-use super::{CommitKind, PaimonSchema};
-use crate::datafusion::paimon::utils::read_to_string;
+use super::{manifest_list::ManifestFileMeta, reader::manifest_list, CommitKind, PaimonSchema};
+use crate::datafusion::paimon::{manifest::ManifestEntry, utils::read_to_string};
 
 #[allow(dead_code)]
 const SNAPSHOT_PREFIX: &str = "snapshot-";
@@ -51,6 +51,33 @@ impl Snapshot {
         let schema_str = read_to_string(latest_schema_path.as_str())?;
         let schema: PaimonSchema = serde_json::from_str(schema_str.as_str())?;
         Ok(schema)
+    }
+
+    #[allow(dead_code)]
+    pub fn base(&self, table_path: &str) -> Result<Vec<ManifestFileMeta>> {
+        let path = format!("{}/manifest/{}", table_path, self.base_manifest_list);
+        let schema = self.get_schema(table_path)?;
+        let _main_entry = manifest_list(path.as_str(), &schema.get_manifest_format())?;
+
+        todo!()
+    }
+
+    #[allow(dead_code)]
+    pub fn delta(&self, table_path: &str) -> Result<Vec<ManifestFileMeta>> {
+        let path = format!("{}/manifest/{}", table_path, self.delta_manifest_list);
+        let schema = self.get_schema(table_path)?;
+        let file_meta = manifest_list(path.as_str(), &schema.get_manifest_format())?;
+
+        let _entry = file_meta
+            .iter()
+            .flat_map(|e| {
+                let _file_name = &e.file_name;
+                // let err_msg = format!("read {}", file_name.as_str());
+                // TODO: Custom error
+                e.manifest(table_path, &schema).unwrap()
+            })
+            .collect::<Vec<ManifestEntry>>();
+        todo!()
     }
 }
 

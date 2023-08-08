@@ -5,7 +5,9 @@ use apache_avro::{from_value, Reader as AvroReader};
 use serde::{Deserialize, Serialize};
 
 use crate::datafusion::paimon::ManifestFileMeta;
-pub(crate) enum FileFormat {
+
+use super::manifest::ManifestEntry;
+pub enum FileFormat {
     #[allow(dead_code)]
     Parquet,
     #[allow(dead_code)]
@@ -24,9 +26,18 @@ impl From<&String> for FileFormat {
     }
 }
 
-pub(crate) fn manifest_list(path: &str, format: &FileFormat) -> Result<Vec<ManifestFileMeta>> {
+pub fn manifest_list(path: &str, format: &FileFormat) -> Result<Vec<ManifestFileMeta>> {
     match format {
         FileFormat::Avro => read_avro::<ManifestFileMeta>(path),
+        FileFormat::Parquet => unimplemented!(),
+        FileFormat::Orc => unimplemented!(),
+    }
+}
+
+#[allow(dead_code)]
+pub fn manifest(path: &str, format: &FileFormat) -> Result<Vec<ManifestEntry>> {
+    match format {
+        FileFormat::Avro => read_avro::<ManifestEntry>(path),
         FileFormat::Parquet => unimplemented!(),
         FileFormat::Orc => unimplemented!(),
     }
@@ -55,7 +66,7 @@ fn read_avro<T: Serialize + for<'a> Deserialize<'a>>(path: &str) -> Result<Vec<T
 #[cfg(test)]
 mod tests {
 
-    use crate::datafusion::paimon::manifest::ManifestEntry;
+    use crate::datafusion::paimon::{manifest::ManifestEntry, snapshot::SnapshotManager};
     use arrow::util::pretty::print_batches as arrow_print_batches;
     use futures::TryStreamExt;
     use parquet::arrow::{
@@ -89,6 +100,18 @@ mod tests {
         println!("{}", serialized);
 
         Ok(())
+    }
+
+    #[tokio::test]
+    async fn merge_stream() -> Result<()> {
+        let table_path = "";
+        let _manager = SnapshotManager::new(table_path);
+
+        // let _snapshot = manager.latest_snapshot().map(|s| {});
+
+        // let mut streams = vec![];
+
+        todo!()
     }
 
     #[tokio::test]

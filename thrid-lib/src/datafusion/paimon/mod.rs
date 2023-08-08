@@ -16,6 +16,7 @@ use self::{
 };
 
 mod example;
+mod exec;
 mod manifest;
 mod manifest_list;
 mod reader;
@@ -58,7 +59,7 @@ pub struct PaimonSchema {
 
 impl PaimonSchema {
     #[allow(dead_code)]
-    fn get_manifest_format(&self) -> FileFormat {
+    pub fn get_manifest_format(&self) -> FileFormat {
         match self.options.get("manifest.format") {
             Some(format) => FileFormat::from(format),
             None => FileFormat::Avro,
@@ -66,7 +67,7 @@ impl PaimonSchema {
     }
 
     #[allow(dead_code)]
-    fn get_file_format(&self) -> FileFormat {
+    pub fn get_file_format(&self) -> FileFormat {
         match self.options.get("file.format") {
             Some(format) => FileFormat::from(format),
             None => FileFormat::Orc,
@@ -90,7 +91,7 @@ impl Field {
 }
 
 #[derive(Serialize, Deserialize, PartialEq, Eq, Debug)]
-pub(crate) struct PartitionStat {
+pub struct PartitionStat {
     #[serde(rename = "_MIN_VALUES", with = "serde_bytes")]
     min_values: Vec<u8>,
     #[serde(rename = "_MAX_VALUES", with = "serde_bytes")]
@@ -100,7 +101,7 @@ pub(crate) struct PartitionStat {
 }
 
 #[allow(dead_code)]
-pub(crate) fn read_schema(path: &str) -> Result<BTreeMap<String, PaimonSchema>> {
+pub fn read_schema(path: &str) -> Result<BTreeMap<String, PaimonSchema>> {
     let mut schema_tree = BTreeMap::new();
 
     for entry in fs::read_dir(path)? {

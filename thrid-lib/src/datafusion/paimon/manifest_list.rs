@@ -1,21 +1,29 @@
 use serde::{Deserialize, Serialize};
 
-use super::PartitionStat;
+use super::{manifest::ManifestEntry, reader::manifest, PaimonSchema, PartitionStat};
+use anyhow::Result;
 
 #[derive(Serialize, Deserialize, PartialEq, Eq, Debug)]
-pub(crate) struct ManifestFileMeta {
+pub struct ManifestFileMeta {
     #[serde(rename = "_VERSION")]
-    version: i32,
+    pub version: i32,
     #[serde(rename = "_FILE_NAME")]
-    file_name: String,
+    pub file_name: String,
     #[serde(rename = "_FILE_SIZE")]
-    file_size: i64,
+    pub file_size: i64,
     #[serde(rename = "_NUM_ADDED_FILES")]
-    num_added_files: i64,
+    pub num_added_files: i64,
     #[serde(rename = "_NUM_DELETED_FILES")]
-    num_deleted_files: i64,
+    pub num_deleted_files: i64,
     #[serde(rename = "_PARTITION_STATS")]
-    partition_stats: Option<PartitionStat>,
+    pub partition_stats: Option<PartitionStat>,
     #[serde(rename = "_SCHEMA_ID")]
-    schema_id: i64,
+    pub schema_id: i64,
+}
+
+impl ManifestFileMeta {
+    pub fn manifest(&self, table_path: &str, schema: &PaimonSchema) -> Result<Vec<ManifestEntry>> {
+        let path = format!("{}/manifest/{}", table_path, self.file_name);
+        manifest(path.as_str(), &schema.get_manifest_format())
+    }
 }
