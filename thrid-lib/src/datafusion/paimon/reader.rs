@@ -67,6 +67,7 @@ fn read_avro<T: Serialize + for<'a> Deserialize<'a>>(path: &str) -> Result<Vec<T
 mod tests {
 
     use crate::datafusion::paimon::{manifest::ManifestEntry, snapshot::SnapshotManager};
+    use anyhow::Ok;
     use arrow::util::pretty::print_batches as arrow_print_batches;
     use futures::TryStreamExt;
     use parquet::arrow::{
@@ -104,14 +105,14 @@ mod tests {
 
     #[tokio::test]
     async fn merge_stream() -> Result<()> {
-        let table_path = "";
+        let table_path = "src/test/paimon/default.db/ods_mysql_paimon_points_5";
         let _manager = SnapshotManager::new(table_path);
 
         // let _snapshot = manager.latest_snapshot().map(|s| {});
 
         // let mut streams = vec![];
 
-        todo!()
+        Ok(())
     }
 
     #[tokio::test]
