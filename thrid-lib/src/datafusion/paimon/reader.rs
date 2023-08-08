@@ -51,10 +51,19 @@ fn read_avro<T: Serialize + for<'a> Deserialize<'a>>(path: &str) -> Result<Vec<T
     Ok(manifestlist)
 }
 
+#[allow(unused_imports)]
 #[cfg(test)]
 mod tests {
 
     use crate::datafusion::paimon::manifest::ManifestEntry;
+    use arrow::util::pretty::print_batches as arrow_print_batches;
+    use futures::TryStreamExt;
+    use parquet::arrow::{
+        arrow_reader::{ArrowPredicateFn, RowFilter},
+        ParquetRecordBatchStreamBuilder, ProjectionMask,
+    };
+    use std::time::SystemTime;
+    use tokio::fs::File;
 
     use super::*;
 
@@ -78,6 +87,50 @@ mod tests {
 
         let serialized = serde_json::to_string(&manifest).unwrap();
         println!("{}", serialized);
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn async_read_parquet_files_test() -> Result<()> {
+        let path = "src/test/paimon/default.db/ods_mysql_paimon_points_5/bucket-0/data-d8b88949-3406-4894-b282-88f19d1e6fcd-1.parquet";
+        let file = File::open(path).await.unwrap();
+
+        // Create a async parquet reader builder with batch_size.
+        // batch_size is the number of rows to read up to buffer once from pages, defaults to 1024
+        let mut builder = ParquetRecordBatchStreamBuilder::new(file)
+            .await
+            .unwrap()
+            .with_batch_size(8192);
+
+        let file_metadata = builder.metadata().file_metadata().clone();
+        let mask = ProjectionMask::roots(
+            file_metadata.schema_descr(),
+            [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13],
+        );
+        // Set projection mask to read only root columns 1 and 2.
+        builder = builder.with_projection(mask);
+
+        // Highlight: set `RowFilter`, it'll push down filter predicates to skip IO and decode.
+        // For more specific usage: please refer to https://github.com/apache/arrow-datafusion/blob/master/datafusion/core/src/physical_plan/file_format/parquet/row_filter.rs.
+
+        // let filter = ArrowPredicateFn::new(
+        //     ProjectionMask::roots(file_metadata.schema_descr(), [0]),
+        //     |record_batch| arrow::compute::eq_dyn_scalar(record_batch.column(0), 1),
+        // );
+        // let row_filter = RowFilter::new(vec![Box::new(filter)]);
+        // builder = builder.with_row_filter(row_filter);
+
+        // Build a async parquet reader.
+        let stream = builder.build().unwrap();
+
+        let start = SystemTime::now();
+
+        let result = stream.try_collect::<Vec<_>>().await?;
+
+        println!("took: {} ms", start.elapsed().unwrap().as_millis());
+
+        arrow_print_batches(&result).unwrap();
 
         Ok(())
     }

@@ -25,9 +25,12 @@ mod utils;
 
 #[derive(Serialize, Deserialize, PartialEq, Eq, Debug)]
 pub enum CommitKind {
-    APPEND,
-    OVERWRITE,
-    COMPACT,
+    #[serde(rename = "APPEND")]
+    Append,
+    #[serde(rename = "OVERWRITE")]
+    Overwrite,
+    #[serde(rename = "COMPACT")]
+    Compact,
 }
 
 #[allow(dead_code)]

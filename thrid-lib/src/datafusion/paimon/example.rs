@@ -276,7 +276,7 @@ impl ExecutionPlan for CustomExec {
             id_array.append_value(user.id);
             account_array.append_value(user.bank_account);
         }
-
+        // RecordBatchReceiverStream
         Ok(Box::pin(MemoryStream::try_new(
             vec![RecordBatch::try_new(
                 self.projected_schema.clone(),
