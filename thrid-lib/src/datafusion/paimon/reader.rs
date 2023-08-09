@@ -1,12 +1,17 @@
 use std::fs;
 
-use anyhow::Result;
+use anyhow::{Ok, Result};
 use apache_avro::{from_value, Reader as AvroReader};
+use datafusion::datasource::listing::PartitionedFile;
+use datafusion::datasource::physical_plan::{FileScanConfig, ParquetExec};
+use datafusion::execution::object_store::ObjectStoreUrl;
+use datafusion_common::Statistics;
 use serde::{Deserialize, Serialize};
 
-use crate::datafusion::paimon::ManifestFileMeta;
+use crate::datafusion::paimon::{to_schema_ref, ManifestFileMeta};
 
-use super::manifest::ManifestEntry;
+use super::{manifest::ManifestEntry, PaimonSchema};
+use object_store::ObjectMeta;
 pub enum FileFormat {
     #[allow(dead_code)]
     Parquet,
@@ -60,6 +65,46 @@ fn read_avro<T: Serialize + for<'a> Deserialize<'a>>(path: &str) -> Result<Vec<T
     }
 
     Ok(manifestlist)
+}
+
+#[allow(dead_code)]
+pub fn read_parquet(
+    table_path: &str,
+    entries: &[ManifestEntry],
+    schema: &mut PaimonSchema,
+) -> Result<ParquetExec> {
+    let file_groups = entries
+        .iter()
+        .map(|e| {
+            let p: Option<ObjectMeta> = e.to_object_meta(table_path);
+            p
+        })
+        .filter(|o| o.is_some())
+        .map(|o| Into::into(o.unwrap()))
+        .collect::<Vec<PartitionedFile>>();
+
+    let file_schema = to_schema_ref(schema);
+    // Create a async parquet reader builder with batch_size.
+    // batch_size is the number of rows to read up to buffer once from pages, defaults to 1024
+
+    // schema_coercion.rs
+    let parquet_exec: ParquetExec = ParquetExec::new(
+        FileScanConfig {
+            object_store_url: ObjectStoreUrl::local_filesystem(),
+            file_groups: vec![file_groups],
+            file_schema,
+            statistics: Statistics::default(),
+            projection: None,
+            limit: None,
+            table_partition_cols: vec![],
+            output_ordering: vec![],
+            infinite_source: false,
+        },
+        None,
+        None,
+    );
+
+    Ok(parquet_exec)
 }
 
 #[allow(unused_imports)]

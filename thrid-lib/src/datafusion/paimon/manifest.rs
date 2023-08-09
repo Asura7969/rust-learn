@@ -1,47 +1,82 @@
+use chrono::{TimeZone, Utc};
 use serde::{Deserialize, Serialize};
 
 use super::PartitionStat;
+use object_store::path::Path;
+use object_store::ObjectMeta;
 
 #[derive(Serialize, Deserialize, PartialEq, Eq, Debug)]
 pub struct ManifestEntry {
     #[serde(rename = "_KIND")]
-    kind: i32,
+    pub kind: i32,
     #[serde(rename = "_PARTITION", with = "serde_bytes")]
-    partition: Vec<u8>,
+    pub partition: Vec<u8>,
     #[serde(rename = "_BUCKET")]
-    bucket: i32,
+    pub bucket: i32,
     #[serde(rename = "_TOTAL_BUCKETS")]
-    total_bucket: i32,
+    pub total_bucket: i32,
     #[serde(rename = "_FILE")]
-    file: Option<DataFileMeta>,
+    pub file: Option<DataFileMeta>,
+}
+
+impl ManifestEntry {
+    pub fn to_object_meta(&self, table_path: &str) -> Option<ObjectMeta> {
+        match &self.file {
+            Some(file) => {
+                let path = format!("{}/bucket-{}/{}", table_path, self.bucket, file.file_name);
+                let creation_time = Utc.timestamp_opt(file.creation_time, 0).unwrap();
+                let location = Path::from_filesystem_path(path).unwrap();
+                Some(ObjectMeta {
+                    location,
+                    last_modified: creation_time,
+                    size: file.file_size as usize,
+                    e_tag: None,
+                })
+            }
+            _ => None,
+        }
+    }
 }
 
 #[derive(Serialize, Deserialize, PartialEq, Eq, Debug)]
 pub struct DataFileMeta {
     #[serde(rename = "_FILE_NAME")]
-    file_name: String,
+    pub file_name: String,
     #[serde(rename = "_FILE_SIZE")]
-    file_size: i64,
+    pub file_size: i64,
     #[serde(rename = "_ROW_COUNT")]
-    row_count: i64,
+    pub row_count: i64,
     #[serde(rename = "_MIN_KEY", with = "serde_bytes")]
-    min_key: Vec<u8>,
+    pub min_key: Vec<u8>,
     #[serde(rename = "_MAX_KEY", with = "serde_bytes")]
-    max_key: Vec<u8>,
+    pub max_key: Vec<u8>,
     #[serde(rename = "_KEY_STATS")]
-    key_stats: Option<PartitionStat>,
+    pub key_stats: Option<PartitionStat>,
     #[serde(rename = "_VALUE_STATS")]
-    value_stats: Option<PartitionStat>,
+    pub value_stats: Option<PartitionStat>,
     #[serde(rename = "_MIN_SEQUENCE_NUMBER")]
-    min_sequence_number: i64,
+    pub min_sequence_number: i64,
     #[serde(rename = "_MAX_SEQUENCE_NUMBER")]
-    max_sequence_number: i64,
+    pub max_sequence_number: i64,
     #[serde(rename = "_SCHEMA_ID")]
-    schema_id: i64,
+    pub schema_id: i64,
     #[serde(rename = "_LEVEL")]
-    level: i32,
+    pub level: i32,
     #[serde(rename = "_EXTRA_FILES")]
-    extra_files: Vec<String>,
+    pub extra_files: Vec<String>,
     #[serde(rename = "_CREATION_TIME")]
-    creation_time: i64,
+    pub creation_time: i64,
 }
+
+// impl Into<ObjectMeta> for DataFileMeta {
+//     fn into(self) -> ObjectMeta {
+//         let creation_time = Utc.timestamp_opt(self.creation_time, 0).unwrap();
+//         let location = Path::from_filesystem_path(self.file_name).unwrap();
+//         ObjectMeta {
+//             location,
+//             last_modified: creation_time,
+//             size: self.file_size as usize,
+//             e_tag: None,
+//         }
+//     }
+// }

@@ -15,6 +15,7 @@ use self::{
     utils::from,
 };
 
+mod error;
 mod example;
 mod exec;
 mod manifest;

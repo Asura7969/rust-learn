@@ -57,8 +57,17 @@ impl Snapshot {
     pub fn base(&self, table_path: &str) -> Result<Vec<ManifestFileMeta>> {
         let path = format!("{}/manifest/{}", table_path, self.base_manifest_list);
         let schema = self.get_schema(table_path)?;
-        let _main_entry = manifest_list(path.as_str(), &schema.get_manifest_format())?;
+        let file_meta = manifest_list(path.as_str(), &schema.get_manifest_format())?;
 
+        let _entry = file_meta
+            .iter()
+            .flat_map(|e| {
+                let _file_name = &e.file_name;
+                // let err_msg = format!("read {}", file_name.as_str());
+                // TODO: Custom error
+                e.manifest(table_path, &schema).unwrap()
+            })
+            .collect::<Vec<ManifestEntry>>();
         todo!()
     }
 
