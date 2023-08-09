@@ -114,25 +114,31 @@ mod tests {
     use crate::datafusion::paimon::{manifest::ManifestEntry, snapshot::SnapshotManager};
     use anyhow::Ok;
     use arrow::util::pretty::print_batches as arrow_print_batches;
+    use datafusion::{physical_plan::collect, prelude::SessionContext};
     use futures::TryStreamExt;
     use parquet::arrow::{
         arrow_reader::{ArrowPredicateFn, RowFilter},
         ParquetRecordBatchStreamBuilder, ProjectionMask,
     };
-    use std::time::SystemTime;
+    use std::{sync::Arc, time::SystemTime};
     use tokio::fs::File;
 
     use super::*;
 
     #[tokio::test]
-    async fn read_manifest_list_test() -> Result<()> {
-        let path = "src/test/paimon/default.db/ods_mysql_paimon_points_5/manifest/manifest-list-a2f5adb6-adf1-4026-be6a-a01b5fb2cebd-12";
+    async fn snapshot_manager_test() -> Result<()> {
+        let table_path = "src/test/paimon/default.db/ods_mysql_paimon_points_5";
+        let manager = SnapshotManager::new(table_path);
 
-        let manifestlist = read_avro::<ManifestFileMeta>(path)?;
-
-        let serialized = serde_json::to_string_pretty(&manifestlist).unwrap();
-        println!("{}", serialized);
-
+        let snapshot = manager.latest_snapshot().unwrap();
+        let mut schema = snapshot.get_schema(table_path).unwrap();
+        let entries = snapshot.all(table_path).unwrap();
+        let parquet_exec = read_parquet(table_path, &entries, &mut schema)?;
+        let session_ctx = SessionContext::new();
+        let task_ctx = session_ctx.task_ctx();
+        let read: Vec<datafusion::arrow::record_batch::RecordBatch> =
+            collect(Arc::new(parquet_exec), task_ctx).await.unwrap();
+        arrow_print_batches(&read).unwrap();
         Ok(())
     }
 
@@ -144,18 +150,6 @@ mod tests {
 
         let serialized = serde_json::to_string(&manifest).unwrap();
         println!("{}", serialized);
-
-        Ok(())
-    }
-
-    #[tokio::test]
-    async fn merge_stream() -> Result<()> {
-        let table_path = "src/test/paimon/default.db/ods_mysql_paimon_points_5";
-        let _manager = SnapshotManager::new(table_path);
-
-        // let _snapshot = manager.latest_snapshot().map(|s| {});
-
-        // let mut streams = vec![];
 
         Ok(())
     }
@@ -195,7 +189,7 @@ mod tests {
 
         let start = SystemTime::now();
 
-        let result = stream.try_collect::<Vec<_>>().await?;
+        let result: Vec<arrow_array::RecordBatch> = stream.try_collect::<Vec<_>>().await?;
 
         println!("took: {} ms", start.elapsed().unwrap().as_millis());
 

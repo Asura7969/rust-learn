@@ -54,39 +54,54 @@ impl Snapshot {
     }
 
     #[allow(dead_code)]
-    pub fn base(&self, table_path: &str) -> Result<Vec<ManifestFileMeta>> {
+    pub fn all(&self, table_path: &str) -> Result<Vec<ManifestEntry>> {
+        let path = format!("{}/manifest/{}", table_path, self.delta_manifest_list);
+        let schema = self.get_schema(table_path)?;
+        let format = &schema.get_manifest_format();
+        let mut delta_file_meta = manifest_list(path.as_str(), format)?;
+
+        let path = format!("{}/manifest/{}", table_path, self.base_manifest_list);
+        let mut base_file_meta = manifest_list(path.as_str(), format)?;
+        delta_file_meta.append(&mut base_file_meta);
+        let entry = self.get_manifest_entry(delta_file_meta, table_path, &schema);
+        Ok(entry)
+    }
+
+    #[allow(dead_code)]
+    pub fn base(&self, table_path: &str) -> Result<Vec<ManifestEntry>> {
         let path = format!("{}/manifest/{}", table_path, self.base_manifest_list);
         let schema = self.get_schema(table_path)?;
         let file_meta = manifest_list(path.as_str(), &schema.get_manifest_format())?;
 
-        let _entry = file_meta
-            .iter()
-            .flat_map(|e| {
-                let _file_name = &e.file_name;
-                // let err_msg = format!("read {}", file_name.as_str());
-                // TODO: Custom error
-                e.manifest(table_path, &schema).unwrap()
-            })
-            .collect::<Vec<ManifestEntry>>();
-        todo!()
+        let entry = self.get_manifest_entry(file_meta, table_path, &schema);
+        Ok(entry)
     }
 
     #[allow(dead_code)]
-    pub fn delta(&self, table_path: &str) -> Result<Vec<ManifestFileMeta>> {
+    pub fn delta(&self, table_path: &str) -> Result<Vec<ManifestEntry>> {
         let path = format!("{}/manifest/{}", table_path, self.delta_manifest_list);
         let schema = self.get_schema(table_path)?;
         let file_meta = manifest_list(path.as_str(), &schema.get_manifest_format())?;
 
-        let _entry = file_meta
+        let entry = self.get_manifest_entry(file_meta, table_path, &schema);
+        Ok(entry)
+    }
+
+    fn get_manifest_entry(
+        &self,
+        file_meta: Vec<ManifestFileMeta>,
+        table_path: &str,
+        schema: &PaimonSchema,
+    ) -> Vec<ManifestEntry> {
+        file_meta
             .iter()
             .flat_map(|e| {
                 let _file_name = &e.file_name;
                 // let err_msg = format!("read {}", file_name.as_str());
                 // TODO: Custom error
-                e.manifest(table_path, &schema).unwrap()
+                e.manifest(table_path, schema).unwrap()
             })
-            .collect::<Vec<ManifestEntry>>();
-        todo!()
+            .collect::<Vec<ManifestEntry>>()
     }
 }
 

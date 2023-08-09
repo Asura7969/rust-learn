@@ -14,7 +14,7 @@ pub(crate) fn time_zone() -> String {
 }
 
 pub(crate) fn from(value: &str) -> (DataType, bool) {
-    let nullable = value.ends_with("NOT NULL");
+    let nullable = !value.ends_with("NOT NULL");
     let (datatype_str, tuple2) = match extract_num(value) {
         core::result::Result::Ok((input, num)) => (input, Some(num)),
         core::result::Result::Err(err) => {
