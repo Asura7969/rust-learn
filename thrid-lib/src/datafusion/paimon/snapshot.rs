@@ -93,7 +93,7 @@ impl Snapshot {
         table_path: &str,
         schema: &PaimonSchema,
     ) -> Vec<ManifestEntry> {
-        file_meta
+        let r = file_meta
             .iter()
             .flat_map(|e| {
                 let _file_name = &e.file_name;
@@ -101,7 +101,10 @@ impl Snapshot {
                 // TODO: Custom error
                 e.manifest(table_path, schema).unwrap()
             })
-            .collect::<Vec<ManifestEntry>>()
+            .collect::<Vec<ManifestEntry>>();
+        // let serialized = serde_json::to_string(&r).unwrap();
+        // println!("{}", serialized);
+        r
     }
 }
 
@@ -124,7 +127,7 @@ impl SnapshotManager {
         )
     }
 
-    fn snapshot(&self, snapshot_id: i64) -> Result<Snapshot> {
+    pub(crate) fn snapshot(&self, snapshot_id: i64) -> Result<Snapshot> {
         let path = self.snapshot_path(snapshot_id);
         let content = read_to_string(path.as_str())?;
         let s: Snapshot = serde_json::from_str(content.as_str())?;

@@ -1,4 +1,5 @@
 use anyhow::{Ok, Result};
+use arrow_schema::DataType;
 use datafusion::arrow::datatypes::{Field as AField, Schema, SchemaRef};
 use serde::{Deserialize, Serialize};
 use std::{
@@ -119,13 +120,18 @@ pub fn read_schema(path: &str) -> Result<BTreeMap<String, PaimonSchema>> {
 
 pub(crate) fn to_schema_ref(schema: &mut PaimonSchema) -> SchemaRef {
     schema.fields.sort_by(|a, b| a.id.cmp(&b.id));
-    let fields = schema
+    let mut fields = schema
         .fields
         .iter()
         .map(|field| field.to_arrow_field())
         .collect::<Vec<AField>>();
-
-    SchemaRef::new(Schema::new(fields))
+    let mut system_fields = vec![
+        // AField::new("_KEY_point_id", DataType::Utf8, false),
+        AField::new("_SEQUENCE_NUMBER", DataType::UInt64, false),
+        AField::new("_VALUE_KIND", DataType::UInt8, false),
+    ];
+    system_fields.append(&mut fields);
+    SchemaRef::new(Schema::new(system_fields))
 }
 
 pub(crate) fn get_latest_metedata_file(table_path: &str) -> Result<Snapshot> {

@@ -64,6 +64,9 @@ fn read_avro<T: Serialize + for<'a> Deserialize<'a>>(path: &str) -> Result<Vec<T
         manifestlist.push(meta);
     }
 
+    // let serialized = serde_json::to_string(&manifestlist).unwrap();
+    // println!("{}", serialized);
+
     Ok(manifestlist)
 }
 
@@ -75,6 +78,7 @@ pub fn read_parquet(
 ) -> Result<ParquetExec> {
     let file_groups = entries
         .iter()
+        .filter(|m| m.kind == 0 && m.file.is_some())
         .map(|e| {
             let p: Option<ObjectMeta> = e.to_object_meta(table_path);
             p
@@ -130,9 +134,10 @@ mod tests {
         let table_path = "src/test/paimon/default.db/ods_mysql_paimon_points_5";
         let manager = SnapshotManager::new(table_path);
 
+        // let snapshot = manager.snapshot(5).unwrap();
         let snapshot = manager.latest_snapshot().unwrap();
         let mut schema = snapshot.get_schema(table_path).unwrap();
-        let entries = snapshot.all(table_path).unwrap();
+        let entries = snapshot.base(table_path).unwrap();
         let parquet_exec = read_parquet(table_path, &entries, &mut schema)?;
         let session_ctx = SessionContext::new();
         let task_ctx = session_ctx.task_ctx();
