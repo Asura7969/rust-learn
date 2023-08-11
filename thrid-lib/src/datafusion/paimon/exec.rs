@@ -1,7 +1,10 @@
 use std::{any::Any, sync::Arc};
 
+use arrow_array::RecordBatch;
 use datafusion::arrow::datatypes::SchemaRef;
 use datafusion::error::Result;
+use datafusion::physical_plan::collect;
+use datafusion::physical_plan::stream::RecordBatchStreamAdapter;
 use datafusion::{
     execution::TaskContext,
     physical_expr::PhysicalSortExpr,
@@ -10,40 +13,38 @@ use datafusion::{
     },
 };
 use datafusion_common::Statistics;
-
-use super::snapshot::Snapshot;
+// use futures::StreamExt;
 
 #[allow(dead_code)]
-#[derive(Debug)]
-pub struct StreamExec {
-    snapshot: Snapshot,
-    schema: SchemaRef,
+#[derive(Debug, Clone)]
+pub struct MergeExec {
+    pub(crate) input: Arc<dyn ExecutionPlan>,
 }
 
-impl StreamExec {
+impl MergeExec {
+    /// Create a new MergeExec
     #[allow(dead_code)]
-    pub fn new(snapshot: Snapshot, schema: SchemaRef) -> Self {
-        Self { snapshot, schema }
+    pub fn new(input: Arc<dyn ExecutionPlan>) -> Self {
+        MergeExec { input }
     }
 }
 
-impl DisplayAs for StreamExec {
+impl DisplayAs for MergeExec {
     fn fmt_as(&self, t: DisplayFormatType, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         match t {
             DisplayFormatType::Default | DisplayFormatType::Verbose => {
-                write!(f, "StreamExec",)
+                write!(f, "MergeExec")
             }
         }
     }
 }
-
-impl ExecutionPlan for StreamExec {
+impl ExecutionPlan for MergeExec {
     fn as_any(&self) -> &dyn Any {
         self
     }
 
     fn schema(&self) -> SchemaRef {
-        Arc::clone(&self.schema)
+        Arc::clone(&self.input.schema())
     }
 
     fn children(&self) -> Vec<Arc<dyn ExecutionPlan>> {
@@ -66,15 +67,33 @@ impl ExecutionPlan for StreamExec {
         Ok(self)
     }
 
+    /// see AnalyzeExec
     fn execute(
         &self,
         _partition: usize,
-        _context: Arc<TaskContext>,
+        context: Arc<TaskContext>,
     ) -> Result<SendableRecordBatchStream> {
-        todo!()
+        // let mut builder = RecordBatchReceiverStream::builder(self.schema(), 1);
+        // let mut input_stream = builder.build();
+        let captured_input = self.input.clone();
+        let captured_schema = self.input.schema();
+
+        Ok(Box::pin(RecordBatchStreamAdapter::new(
+            self.input.schema(),
+            futures::stream::once(merge_batch(captured_input, captured_schema, context)),
+        )))
     }
 
     fn statistics(&self) -> Statistics {
         unimplemented!()
     }
+}
+
+async fn merge_batch(
+    input: Arc<dyn ExecutionPlan>,
+    _schema: SchemaRef,
+    context: Arc<TaskContext>,
+) -> Result<RecordBatch> {
+    let _read: Vec<datafusion::arrow::record_batch::RecordBatch> = collect(input, context).await?;
+    todo!()
 }
