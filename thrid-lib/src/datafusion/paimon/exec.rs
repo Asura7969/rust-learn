@@ -1,6 +1,8 @@
 use std::{any::Any, sync::Arc};
 
-use arrow_array::RecordBatch;
+use arrow::compute::{filter_record_batch, gt_scalar};
+use arrow_array::cast::downcast_array;
+use arrow_array::{Int8Array, RecordBatch};
 use datafusion::arrow::datatypes::SchemaRef;
 use datafusion::error::Result;
 use datafusion::physical_plan::collect;
@@ -13,12 +15,15 @@ use datafusion::{
     },
 };
 use datafusion_common::Statistics;
+// use itertools::Itertools;
+
 // use futures::StreamExt;
 
 #[allow(dead_code)]
 #[derive(Debug, Clone)]
 pub struct MergeExec {
     pub(crate) input: Arc<dyn ExecutionPlan>,
+    // merge_func: Fn<>
 }
 
 impl MergeExec {
@@ -94,6 +99,28 @@ async fn merge_batch(
     _schema: SchemaRef,
     context: Arc<TaskContext>,
 ) -> Result<RecordBatch> {
-    let _read: Vec<datafusion::arrow::record_batch::RecordBatch> = collect(input, context).await?;
+    let records: Vec<RecordBatch> = collect(input, context).await?;
+    // column_by_name
+
+    // 过滤 kind > 0 的记录
+    let _filter = records
+        .iter()
+        .map(|r| {
+            let arr: Int8Array = downcast_array(r.column(2).as_ref());
+            let filter = gt_scalar(&arr, 0i8).unwrap();
+
+            filter_record_batch(r, &filter).unwrap()
+        })
+        // .map(|r| {
+        //     // TODO: 没有主键的情况
+        //     let pk: StringArray = downcast_array(r.column(0));
+        //     let seq: Int64Array = downcast_array(r.column(1));
+        //     let kind: Int8Array = downcast_array(r.column(2));
+        //     (pk, seq, kind)
+        // })
+        .collect::<Vec<_>>();
+    // filter_record_batch(&records, )
+    // use arrow_select::take::take;
+
     todo!()
 }

@@ -126,9 +126,9 @@ pub(crate) fn to_schema_ref(schema: &mut PaimonSchema) -> SchemaRef {
         .map(|field| field.to_arrow_field())
         .collect::<Vec<AField>>();
     let mut system_fields = vec![
-        // AField::new("_KEY_point_id", DataType::Utf8, false),
+        AField::new("_KEY_point_id", DataType::Utf8, false),
         AField::new("_SEQUENCE_NUMBER", DataType::UInt64, false),
-        AField::new("_VALUE_KIND", DataType::UInt8, false),
+        AField::new("_VALUE_KIND", DataType::Int8, false),
     ];
     system_fields.append(&mut fields);
     SchemaRef::new(Schema::new(system_fields))
