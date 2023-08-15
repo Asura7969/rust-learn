@@ -1,10 +1,11 @@
 use std::{any::Any, sync::Arc};
 
+use ahash::AHashMap;
 use arrow::compute::{filter_record_batch, gt_scalar};
 use arrow_array::cast::downcast_array;
-use arrow_array::{Int8Array, RecordBatch};
+use arrow_array::{BooleanArray, Int64Array, Int8Array, RecordBatch, StringArray};
+use arrow_select::concat::concat_batches;
 use datafusion::arrow::datatypes::SchemaRef;
-use datafusion::error::Result;
 use datafusion::physical_plan::collect;
 use datafusion::physical_plan::stream::RecordBatchStreamAdapter;
 use datafusion::{
@@ -14,6 +15,8 @@ use datafusion::{
         DisplayAs, DisplayFormatType, ExecutionPlan, Partitioning, SendableRecordBatchStream,
     },
 };
+use datafusion_common::Result;
+// use datafusion::error::Result;
 use datafusion_common::Statistics;
 // use itertools::Itertools;
 
@@ -69,7 +72,7 @@ impl ExecutionPlan for MergeExec {
         self: Arc<Self>,
         _: Vec<Arc<dyn ExecutionPlan>>,
     ) -> Result<Arc<dyn ExecutionPlan>> {
-        Ok(self)
+        Result::Ok(self)
     }
 
     /// see AnalyzeExec
@@ -83,7 +86,7 @@ impl ExecutionPlan for MergeExec {
         let captured_input = self.input.clone();
         let captured_schema = self.input.schema();
 
-        Ok(Box::pin(RecordBatchStreamAdapter::new(
+        Result::Ok(Box::pin(RecordBatchStreamAdapter::new(
             self.input.schema(),
             futures::stream::once(merge_batch(captured_input, captured_schema, context)),
         )))
@@ -96,31 +99,56 @@ impl ExecutionPlan for MergeExec {
 
 async fn merge_batch(
     input: Arc<dyn ExecutionPlan>,
-    _schema: SchemaRef,
+    schema: SchemaRef,
     context: Arc<TaskContext>,
 ) -> Result<RecordBatch> {
     let records: Vec<RecordBatch> = collect(input, context).await?;
+    let batch = concat_batches(&schema, records.iter())?;
     // column_by_name
-
-    // 过滤 kind > 0 的记录
-    let _filter = records
-        .iter()
-        .map(|r| {
-            let arr: Int8Array = downcast_array(r.column(2).as_ref());
-            let filter = gt_scalar(&arr, 0i8).unwrap();
-
-            filter_record_batch(r, &filter).unwrap()
-        })
-        // .map(|r| {
-        //     // TODO: 没有主键的情况
-        //     let pk: StringArray = downcast_array(r.column(0));
-        //     let seq: Int64Array = downcast_array(r.column(1));
-        //     let kind: Int8Array = downcast_array(r.column(2));
-        //     (pk, seq, kind)
-        // })
-        .collect::<Vec<_>>();
-    // filter_record_batch(&records, )
     // use arrow_select::take::take;
+    let arr: Int8Array = downcast_array(batch.column(2).as_ref());
+    let filter = gt_scalar(&arr, 0i8).unwrap();
+    let delete_or_update = filter_record_batch(&batch, &filter).unwrap();
+    if delete_or_update.num_rows() != 0 {
+        return std::result::Result::Ok(batch);
+    }
 
-    todo!()
+    let inner_field = batch.project(&[0, 1, 2])?;
+    let count = inner_field.num_rows();
+    let pk: StringArray = downcast_array(inner_field.column(0));
+    let seq: Int64Array = downcast_array(inner_field.column(1));
+    let kind: Int8Array = downcast_array(inner_field.column(2));
+    let mut map: AHashMap<&str, (&str, i64, i8, usize)> = AHashMap::new();
+
+    for idx in 0..count {
+        let pk_v = pk.value(idx);
+        let seq_v = seq.value(idx);
+        let kind_v = kind.value(idx);
+
+        match kind_v {
+            0 | 2 => {
+                map.insert(pk_v, (pk_v, seq_v, kind_v, idx));
+            }
+            1 => {}
+            3 => {
+                map.remove(pk_v);
+            }
+            _ => panic!("unknown rowkind, maybe new kind"),
+        };
+    }
+    let idx = map
+        .into_values()
+        .map(|(_, _, _, idx)| idx)
+        .collect::<Vec<usize>>();
+    let idx: Vec<_> = (0..count).map(|x| idx.contains(&x)).collect();
+    let merge_filter: BooleanArray = BooleanArray::from(idx);
+    let _batch = filter_record_batch(&batch, &merge_filter).unwrap();
+    std::result::Result::Ok(batch)
 }
+
+// struct RowBatch<T> {
+//     pk: T,
+//     seq: i64,
+//     kind: i8,
+//     idx: usize,
+// }
