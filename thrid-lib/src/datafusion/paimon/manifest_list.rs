@@ -1,6 +1,8 @@
 use serde::{Deserialize, Serialize};
 
-use super::{manifest::ManifestEntry, reader::manifest, PaimonSchema, PartitionStat};
+use super::{
+    error::PaimonError, manifest::ManifestEntry, reader::manifest, PaimonSchema, PartitionStat,
+};
 use anyhow::Result;
 
 #[derive(Serialize, Deserialize, PartialEq, Eq, Debug)]
@@ -22,7 +24,11 @@ pub struct ManifestFileMeta {
 }
 
 impl ManifestFileMeta {
-    pub fn manifest(&self, table_path: &str, schema: &PaimonSchema) -> Result<Vec<ManifestEntry>> {
+    pub fn manifest(
+        &self,
+        table_path: &str,
+        schema: &PaimonSchema,
+    ) -> Result<Vec<ManifestEntry>, PaimonError> {
         let path = format!("{}/manifest/{}", table_path, self.file_name);
         manifest(path.as_str(), &schema.get_manifest_format())
     }

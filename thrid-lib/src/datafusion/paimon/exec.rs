@@ -3,7 +3,7 @@ use std::{any::Any, sync::Arc};
 use ahash::AHashMap;
 use arrow::compute::{filter_record_batch, gt_scalar};
 use arrow_array::cast::downcast_array;
-use arrow_array::{BooleanArray, Int64Array, Int8Array, RecordBatch, StringArray};
+use arrow_array::{BooleanArray, Int8Array, RecordBatch, StringArray, UInt64Array};
 use arrow_select::concat::concat_batches;
 use datafusion::arrow::datatypes::SchemaRef;
 use datafusion::physical_plan::collect;
@@ -109,16 +109,16 @@ async fn merge_batch(
     let arr: Int8Array = downcast_array(batch.column(2).as_ref());
     let filter = gt_scalar(&arr, 0i8).unwrap();
     let delete_or_update = filter_record_batch(&batch, &filter).unwrap();
-    if delete_or_update.num_rows() != 0 {
+    if delete_or_update.num_rows() == 0 {
         return std::result::Result::Ok(batch);
     }
 
     let inner_field = batch.project(&[0, 1, 2])?;
     let count = inner_field.num_rows();
     let pk: StringArray = downcast_array(inner_field.column(0));
-    let seq: Int64Array = downcast_array(inner_field.column(1));
+    let seq: UInt64Array = downcast_array(inner_field.column(1));
     let kind: Int8Array = downcast_array(inner_field.column(2));
-    let mut map: AHashMap<&str, (&str, i64, i8, usize)> = AHashMap::new();
+    let mut map: AHashMap<&str, (&str, u64, i8, usize)> = AHashMap::new();
 
     for idx in 0..count {
         let pk_v = pk.value(idx);
@@ -136,19 +136,20 @@ async fn merge_batch(
             _ => panic!("unknown rowkind, maybe new kind"),
         };
     }
+    println!("map size: {}, row count: {}", map.len(), count);
     let idx = map
         .into_values()
         .map(|(_, _, _, idx)| idx)
         .collect::<Vec<usize>>();
     let idx: Vec<_> = (0..count).map(|x| idx.contains(&x)).collect();
     let merge_filter: BooleanArray = BooleanArray::from(idx);
-    let _batch = filter_record_batch(&batch, &merge_filter).unwrap();
+    let batch = filter_record_batch(&batch, &merge_filter).unwrap();
     std::result::Result::Ok(batch)
 }
 
 // struct RowBatch<T> {
 //     pk: T,
-//     seq: i64,
+//     seq: u64,
 //     kind: i8,
 //     idx: usize,
 // }

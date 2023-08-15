@@ -1,6 +1,5 @@
 use std::fs;
 
-use anyhow::{Ok, Result};
 use apache_avro::{from_value, Reader as AvroReader};
 use datafusion::datasource::listing::PartitionedFile;
 use datafusion::datasource::physical_plan::{FileScanConfig, ParquetExec};
@@ -10,6 +9,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::datafusion::paimon::{to_schema_ref, ManifestFileMeta};
 
+use super::error::PaimonError;
 use super::{manifest::ManifestEntry, PaimonSchema};
 use object_store::ObjectMeta;
 pub enum FileFormat {
@@ -31,7 +31,10 @@ impl From<&String> for FileFormat {
     }
 }
 
-pub fn manifest_list(path: &str, format: &FileFormat) -> Result<Vec<ManifestFileMeta>> {
+pub fn manifest_list(
+    path: &str,
+    format: &FileFormat,
+) -> Result<Vec<ManifestFileMeta>, PaimonError> {
     match format {
         FileFormat::Avro => read_avro::<ManifestFileMeta>(path),
         FileFormat::Parquet => unimplemented!(),
@@ -40,7 +43,7 @@ pub fn manifest_list(path: &str, format: &FileFormat) -> Result<Vec<ManifestFile
 }
 
 #[allow(dead_code)]
-pub fn manifest(path: &str, format: &FileFormat) -> Result<Vec<ManifestEntry>> {
+pub fn manifest(path: &str, format: &FileFormat) -> Result<Vec<ManifestEntry>, PaimonError> {
     match format {
         FileFormat::Avro => read_avro::<ManifestEntry>(path),
         FileFormat::Parquet => unimplemented!(),
@@ -48,7 +51,7 @@ pub fn manifest(path: &str, format: &FileFormat) -> Result<Vec<ManifestEntry>> {
     }
 }
 
-fn read_avro<T: Serialize + for<'a> Deserialize<'a>>(path: &str) -> Result<Vec<T>> {
+fn read_avro<T: Serialize + for<'a> Deserialize<'a>>(path: &str) -> Result<Vec<T>, PaimonError> {
     // TODO: remote read, such as OSS, HDFS, etc.
     let r = fs::File::open(path)?;
     let reader = AvroReader::new(r)?;
@@ -75,7 +78,7 @@ pub fn read_parquet(
     table_path: &str,
     entries: &[ManifestEntry],
     schema: &mut PaimonSchema,
-) -> Result<ParquetExec> {
+) -> Result<ParquetExec, PaimonError> {
     let file_groups = entries
         .iter()
         .filter(|m| m.kind == 0 && m.file.is_some())
@@ -115,22 +118,31 @@ pub fn read_parquet(
 #[cfg(test)]
 mod tests {
 
-    use crate::datafusion::paimon::{manifest::ManifestEntry, snapshot::SnapshotManager};
-    use anyhow::Ok;
+    use super::*;
+    use crate::datafusion::paimon::{
+        error::PaimonError, exec::MergeExec, manifest::ManifestEntry, snapshot::SnapshotManager,
+    };
     use arrow::util::pretty::print_batches as arrow_print_batches;
+    use datafusion::{
+        common::{config::ConfigExtension, extensions_options},
+        config::ConfigOptions,
+        execution::{context::SessionState, runtime_env::RuntimeEnv, TaskContext},
+        prelude::SessionConfig,
+    };
     use datafusion::{physical_plan::collect, prelude::SessionContext};
     use futures::TryStreamExt;
     use parquet::arrow::{
         arrow_reader::{ArrowPredicateFn, RowFilter},
         ParquetRecordBatchStreamBuilder, ProjectionMask,
     };
-    use std::{sync::Arc, time::SystemTime};
+    use std::{collections::HashMap, sync::Arc, time::SystemTime};
     use tokio::fs::File;
 
-    use super::*;
+    struct PrimaryKeys(Vec<String>);
+    struct PartitionKeys(Vec<String>);
 
     #[tokio::test]
-    async fn snapshot_manager_test() -> Result<()> {
+    async fn snapshot_manager_test() -> Result<(), PaimonError> {
         let table_path = "src/test/paimon/default.db/ods_mysql_paimon_points_5";
         let manager = SnapshotManager::new(table_path);
 
@@ -139,16 +151,30 @@ mod tests {
         let mut schema = snapshot.get_schema(table_path).unwrap();
         let entries = snapshot.base(table_path).unwrap();
         let parquet_exec = read_parquet(table_path, &entries, &mut schema)?;
-        let session_ctx = SessionContext::new();
+
+        let options = schema.options.clone();
+
+        // 设置上下文参数：主键、分区键、任务参数
+        let primary_keys_ext = Arc::new(PrimaryKeys(vec!["point_id".to_string()]));
+        let partition_keys_ext = Arc::new(PartitionKeys(vec![]));
+        let session_config = SessionConfig::from_string_hash_map(options)
+            .unwrap()
+            .with_extension(Arc::clone(&primary_keys_ext))
+            .with_extension(Arc::clone(&partition_keys_ext));
+
+        let session_ctx = SessionContext::with_config(session_config);
         let task_ctx = session_ctx.task_ctx();
+
         let read: Vec<datafusion::arrow::record_batch::RecordBatch> =
-            collect(Arc::new(parquet_exec), task_ctx).await.unwrap();
+            collect(Arc::new(MergeExec::new(Arc::new(parquet_exec))), task_ctx)
+                .await
+                .unwrap();
         arrow_print_batches(&read).unwrap();
         Ok(())
     }
 
     #[tokio::test]
-    async fn read_manifest_test() -> Result<()> {
+    async fn read_manifest_test() -> Result<(), PaimonError> {
         let path = "src/test/paimon/default.db/ods_mysql_paimon_points_5/manifest/manifest-5246a8f1-fdf4-4524-a2a2-fcd99dc08a1b-0";
 
         let manifest = read_avro::<ManifestEntry>(path)?;
@@ -160,7 +186,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn async_read_parquet_files_test() -> Result<()> {
+    async fn async_read_parquet_files_test() -> Result<(), PaimonError> {
         let path = "src/test/paimon/default.db/ods_mysql_paimon_points_5/bucket-0/data-d8b88949-3406-4894-b282-88f19d1e6fcd-1.parquet";
         let file = File::open(path).await.unwrap();
 

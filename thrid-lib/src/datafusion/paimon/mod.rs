@@ -1,4 +1,3 @@
-use anyhow::{Ok, Result};
 use arrow_schema::DataType;
 use datafusion::arrow::datatypes::{Field as AField, Schema, SchemaRef};
 use serde::{Deserialize, Serialize};
@@ -10,6 +9,7 @@ use std::{
 use crate::datafusion::paimon::utils::read_to_string;
 
 use self::{
+    error::PaimonError,
     manifest_list::ManifestFileMeta,
     reader::{manifest_list, FileFormat},
     snapshot::Snapshot,
@@ -41,7 +41,7 @@ fn get_manifest_list(
     table_path: &str,
     file_name: &str,
     format: &FileFormat,
-) -> Result<Vec<ManifestFileMeta>> {
+) -> Result<Vec<ManifestFileMeta>, PaimonError> {
     let path = format!("{}/manifest/{}", table_path, file_name);
     manifest_list(path.as_str(), format)
 }
@@ -103,7 +103,7 @@ pub struct PartitionStat {
 }
 
 #[allow(dead_code)]
-pub fn read_schema(path: &str) -> Result<BTreeMap<String, PaimonSchema>> {
+pub fn read_schema(path: &str) -> Result<BTreeMap<String, PaimonSchema>, PaimonError> {
     let mut schema_tree = BTreeMap::new();
 
     for entry in fs::read_dir(path)? {
@@ -126,7 +126,7 @@ pub(crate) fn to_schema_ref(schema: &mut PaimonSchema) -> SchemaRef {
         .map(|field| field.to_arrow_field())
         .collect::<Vec<AField>>();
     let mut system_fields = vec![
-        // AField::new("_KEY_point_id", DataType::Utf8, false),
+        AField::new("_KEY_point_id", DataType::Utf8, false),
         AField::new("_SEQUENCE_NUMBER", DataType::UInt64, false),
         AField::new("_VALUE_KIND", DataType::Int8, false),
     ];
@@ -134,7 +134,7 @@ pub(crate) fn to_schema_ref(schema: &mut PaimonSchema) -> SchemaRef {
     SchemaRef::new(Schema::new(system_fields))
 }
 
-pub(crate) fn get_latest_metedata_file(table_path: &str) -> Result<Snapshot> {
+pub(crate) fn get_latest_metedata_file(table_path: &str) -> Result<Snapshot, PaimonError> {
     let latest_path = format!("{}/snapshot/LATEST", table_path);
     let latest_num = read_to_string(latest_path.as_str())?;
 

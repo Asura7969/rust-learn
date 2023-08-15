@@ -1,9 +1,11 @@
 use std::collections::HashMap;
 
-use anyhow::{Ok, Result};
 use serde::{Deserialize, Serialize};
 
-use super::{manifest_list::ManifestFileMeta, reader::manifest_list, CommitKind, PaimonSchema};
+use super::{
+    error::PaimonError, manifest_list::ManifestFileMeta, reader::manifest_list, CommitKind,
+    PaimonSchema,
+};
 use crate::datafusion::paimon::{manifest::ManifestEntry, utils::read_to_string};
 
 #[allow(dead_code)]
@@ -46,7 +48,7 @@ pub struct Snapshot {
 }
 
 impl Snapshot {
-    pub fn get_schema(&self, table_path: &str) -> Result<PaimonSchema> {
+    pub fn get_schema(&self, table_path: &str) -> Result<PaimonSchema, PaimonError> {
         let latest_schema_path = format!("{}/schema/schema-{}", table_path, self.schema_id);
         let schema_str = read_to_string(latest_schema_path.as_str())?;
         let schema: PaimonSchema = serde_json::from_str(schema_str.as_str())?;
@@ -54,7 +56,7 @@ impl Snapshot {
     }
 
     #[allow(dead_code)]
-    pub fn all(&self, table_path: &str) -> Result<Vec<ManifestEntry>> {
+    pub fn all(&self, table_path: &str) -> Result<Vec<ManifestEntry>, PaimonError> {
         let path = format!("{}/manifest/{}", table_path, self.delta_manifest_list);
         let schema = self.get_schema(table_path)?;
         let format = &schema.get_manifest_format();
@@ -68,7 +70,7 @@ impl Snapshot {
     }
 
     #[allow(dead_code)]
-    pub fn base(&self, table_path: &str) -> Result<Vec<ManifestEntry>> {
+    pub fn base(&self, table_path: &str) -> Result<Vec<ManifestEntry>, PaimonError> {
         let path = format!("{}/manifest/{}", table_path, self.base_manifest_list);
         let schema = self.get_schema(table_path)?;
         let file_meta = manifest_list(path.as_str(), &schema.get_manifest_format())?;
@@ -78,7 +80,7 @@ impl Snapshot {
     }
 
     #[allow(dead_code)]
-    pub fn delta(&self, table_path: &str) -> Result<Vec<ManifestEntry>> {
+    pub fn delta(&self, table_path: &str) -> Result<Vec<ManifestEntry>, PaimonError> {
         let path = format!("{}/manifest/{}", table_path, self.delta_manifest_list);
         let schema = self.get_schema(table_path)?;
         let file_meta = manifest_list(path.as_str(), &schema.get_manifest_format())?;
@@ -127,7 +129,7 @@ impl SnapshotManager {
         )
     }
 
-    pub(crate) fn snapshot(&self, snapshot_id: i64) -> Result<Snapshot> {
+    pub(crate) fn snapshot(&self, snapshot_id: i64) -> Result<Snapshot, PaimonError> {
         let path = self.snapshot_path(snapshot_id);
         let content = read_to_string(path.as_str())?;
         let s: Snapshot = serde_json::from_str(content.as_str())?;
@@ -162,7 +164,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn read_snapshot() -> Result<()> {
+    fn read_snapshot() -> Result<(), PaimonError> {
         let table_path = "src/test/paimon/default.db/ods_mysql_paimon_points_4";
         let json = r#"
             {
