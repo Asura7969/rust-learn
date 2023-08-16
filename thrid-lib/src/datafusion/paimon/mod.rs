@@ -26,6 +26,11 @@ mod snapshot;
 mod table;
 mod utils;
 
+#[allow(dead_code)]
+pub struct PrimaryKeys(Vec<String>);
+#[allow(dead_code)]
+pub struct PartitionKeys(Vec<String>);
+
 #[derive(Serialize, Deserialize, PartialEq, Eq, Debug)]
 pub enum CommitKind {
     #[serde(rename = "APPEND")]

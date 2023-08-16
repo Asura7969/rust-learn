@@ -165,21 +165,21 @@ mod tests {
 
     #[test]
     fn read_snapshot() -> Result<(), PaimonError> {
-        let table_path = "src/test/paimon/default.db/ods_mysql_paimon_points_4";
+        let table_path = "src/test/paimon/default.db/ods_mysql_paimon_points_5";
         let json = r#"
             {
                 "version" : 3,
-                "id" : 11,
+                "id" : 5,
                 "schemaId" : 0,
-                "baseManifestList" : "manifest-list-21e785dc-5ca9-43ef-bd79-04b2fd410370-25",
-                "deltaManifestList" : "manifest-list-21e785dc-5ca9-43ef-bd79-04b2fd410370-26",
+                "baseManifestList" : "manifest-list-a2f5adb6-adf1-4026-be6a-a01b5fb2cebd-12",
+                "deltaManifestList" : "manifest-list-a2f5adb6-adf1-4026-be6a-a01b5fb2cebd-13",
                 "changelogManifestList" : null,
-                "commitUser" : "5adce4a8-a6ac-4659-8660-cb26a4d32157",
-                "commitIdentifier" : 13,
+                "commitUser" : "e75f405b-210d-4d84-b350-ec445fed9530",
+                "commitIdentifier" : 6,
                 "commitKind" : "APPEND",
-                "timeMillis" : 1690966977203,
+                "timeMillis" : 1691031342569,
                 "logOffsets" : { },
-                "totalRecordCount" : 18,
+                "totalRecordCount" : 9,
                 "deltaRecordCount" : 0,
                 "changelogRecordCount" : 0,
                 "watermark" : -9223372036854775808
@@ -266,9 +266,9 @@ mod tests {
                 "options" : {
                 "bucket" : "2",
                 "auto-create" : "true",
-                "path" : "oss://strategy-map/paimon/default.db/ods_mysql_paimon_points_4",
+                "path" : "oss://strategy-map/paimon/default.db/ods_mysql_paimon_points_5",
                 "changelog-producer" : "input",
-                "manifest.format" : "orc",
+                "manifest.format" : "avro",
                 "file.format" : "parquet",
                 "type" : "paimon"
                 }

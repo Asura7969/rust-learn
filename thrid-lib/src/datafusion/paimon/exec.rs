@@ -18,6 +18,8 @@ use datafusion::{
 use datafusion_common::Result;
 // use datafusion::error::Result;
 use datafusion_common::Statistics;
+
+use crate::datafusion::paimon::PrimaryKeys;
 // use itertools::Itertools;
 
 // use futures::StreamExt;
@@ -102,7 +104,7 @@ async fn merge_batch(
     schema: SchemaRef,
     context: Arc<TaskContext>,
 ) -> Result<RecordBatch> {
-    let records: Vec<RecordBatch> = collect(input, context).await?;
+    let records: Vec<RecordBatch> = collect(input, context.clone()).await?;
     let batch = concat_batches(&schema, records.iter())?;
     // column_by_name
     // use arrow_select::take::take;
@@ -136,7 +138,6 @@ async fn merge_batch(
             _ => panic!("unknown rowkind, maybe new kind"),
         };
     }
-    println!("map size: {}, row count: {}", map.len(), count);
     let idx = map
         .into_values()
         .map(|(_, _, _, idx)| idx)
@@ -145,6 +146,24 @@ async fn merge_batch(
     let merge_filter: BooleanArray = BooleanArray::from(idx);
     let batch = filter_record_batch(&batch, &merge_filter).unwrap();
     std::result::Result::Ok(batch)
+}
+
+#[allow(dead_code)]
+fn extract_merge_key(batch: &RecordBatch, ctx: Arc<TaskContext>) {
+    let pks = &ctx
+        .session_config()
+        .get_extension::<PrimaryKeys>()
+        .unwrap()
+        .0;
+
+    let pk_len = pks.len();
+
+    let _seq: UInt64Array = downcast_array(batch.column(pk_len));
+    let _kind: Int8Array = downcast_array(batch.column(pk_len + 1));
+
+    let _row_num = batch.num_rows();
+
+    todo!()
 }
 
 // struct RowBatch<T> {

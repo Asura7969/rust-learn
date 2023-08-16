@@ -121,6 +121,7 @@ mod tests {
     use super::*;
     use crate::datafusion::paimon::{
         error::PaimonError, exec::MergeExec, manifest::ManifestEntry, snapshot::SnapshotManager,
+        PartitionKeys, PrimaryKeys,
     };
     use arrow::util::pretty::print_batches as arrow_print_batches;
     use datafusion::{
@@ -138,9 +139,6 @@ mod tests {
     use std::{collections::HashMap, sync::Arc, time::SystemTime};
     use tokio::fs::File;
 
-    struct PrimaryKeys(Vec<String>);
-    struct PartitionKeys(Vec<String>);
-
     #[tokio::test]
     async fn snapshot_manager_test() -> Result<(), PaimonError> {
         let table_path = "src/test/paimon/default.db/ods_mysql_paimon_points_5";
@@ -153,10 +151,12 @@ mod tests {
         let parquet_exec = read_parquet(table_path, &entries, &mut schema)?;
 
         let options = schema.options.clone();
+        let pk = schema.primary_keys.clone();
+        let partition_keys = schema.partition_keys.clone();
 
         // 设置上下文参数：主键、分区键、任务参数
-        let primary_keys_ext = Arc::new(PrimaryKeys(vec!["point_id".to_string()]));
-        let partition_keys_ext = Arc::new(PartitionKeys(vec![]));
+        let primary_keys_ext = Arc::new(PrimaryKeys(pk));
+        let partition_keys_ext = Arc::new(PartitionKeys(partition_keys));
         let session_config = SessionConfig::from_string_hash_map(options)
             .unwrap()
             .with_extension(Arc::clone(&primary_keys_ext))
@@ -187,7 +187,8 @@ mod tests {
 
     #[tokio::test]
     async fn async_read_parquet_files_test() -> Result<(), PaimonError> {
-        let path = "src/test/paimon/default.db/ods_mysql_paimon_points_5/bucket-0/data-d8b88949-3406-4894-b282-88f19d1e6fcd-1.parquet";
+        // let path = "src/test/paimon/default.db/ods_mysql_paimon_points_5/bucket-0/data-d8b88949-3406-4894-b282-88f19d1e6fcd-1.parquet";
+        let path = "src/test/paimon/default.db/many_pk_table/bucket-0/data-a53acd62-0d99-43d6-8ffe-a76ac3b719d9-1.parquet";
         let file = File::open(path).await.unwrap();
 
         // Create a async parquet reader builder with batch_size.
@@ -200,7 +201,7 @@ mod tests {
         let file_metadata = builder.metadata().file_metadata().clone();
         let mask = ProjectionMask::roots(
             file_metadata.schema_descr(),
-            [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13],
+            [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12],
         );
         // Set projection mask to read only root columns 1 and 2.
         builder = builder.with_projection(mask);
