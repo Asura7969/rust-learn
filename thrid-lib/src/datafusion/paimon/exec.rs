@@ -1,13 +1,16 @@
 use std::{any::Any, sync::Arc};
 
-use ahash::AHashMap;
+use ahash::{AHashMap, RandomState};
 use arrow::compute::{filter_record_batch, gt_scalar};
 use arrow_array::cast::downcast_array;
 use arrow_array::{BooleanArray, Int8Array, RecordBatch, StringArray, UInt64Array};
 use arrow_select::concat::concat_batches;
 use datafusion::arrow::datatypes::SchemaRef;
 use datafusion::physical_plan::collect;
+use datafusion::physical_plan::expressions::Column;
+use datafusion::physical_plan::hash_utils::create_hashes;
 use datafusion::physical_plan::stream::RecordBatchStreamAdapter;
+use datafusion::physical_plan::PhysicalExpr;
 use datafusion::{
     execution::TaskContext,
     physical_expr::PhysicalSortExpr,
@@ -158,6 +161,21 @@ fn extract_merge_key(batch: &RecordBatch, ctx: Arc<TaskContext>) {
 
     let pk_len = pks.len();
 
+    let key = pks
+        .iter()
+        .enumerate()
+        .map(|(idx, pk_name)| Column::new(pk_name.as_str(), idx))
+        .collect::<Vec<_>>();
+    let keys_values = key
+        .iter()
+        .map(|c| Ok(c.evaluate(batch)?.into_array(batch.num_rows())))
+        .collect::<Result<Vec<_>>>()
+        .unwrap();
+    let random_state = RandomState::with_seeds(0, 0, 0, 0);
+    let mut hashes_buffer = vec![0; batch.num_rows()];
+
+    let _hash_values = create_hashes(&keys_values, &random_state, &mut hashes_buffer).unwrap();
+
     let _seq: UInt64Array = downcast_array(batch.column(pk_len));
     let _kind: Int8Array = downcast_array(batch.column(pk_len + 1));
 
@@ -165,6 +183,14 @@ fn extract_merge_key(batch: &RecordBatch, ctx: Arc<TaskContext>) {
 
     todo!()
 }
+
+// fn print_primitive<T: ByteArrayType>(array: &dyn Array) -> &GenericByteArray<T> {
+//     downcast_primitive_array!(
+//         array => array,
+//         DataType::Utf8 => as_string_array(array),
+//         t => panic!("Unsupported datatype {}", t)
+//     )
+// }
 
 // struct RowBatch<T> {
 //     pk: T,
