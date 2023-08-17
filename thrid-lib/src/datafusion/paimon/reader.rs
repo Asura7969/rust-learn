@@ -1,16 +1,18 @@
 use std::fs;
+use std::sync::Arc;
 
 use apache_avro::{from_value, Reader as AvroReader};
+use arrow_schema::Schema;
 use datafusion::datasource::listing::PartitionedFile;
 use datafusion::datasource::physical_plan::{FileScanConfig, ParquetExec};
 use datafusion::execution::object_store::ObjectStoreUrl;
 use datafusion_common::Statistics;
 use serde::{Deserialize, Serialize};
 
-use crate::datafusion::paimon::{to_schema_ref, ManifestFileMeta};
+use crate::datafusion::paimon::ManifestFileMeta;
 
 use super::error::PaimonError;
-use super::{manifest::ManifestEntry, PaimonSchema};
+use super::manifest::ManifestEntry;
 use object_store::ObjectMeta;
 pub enum FileFormat {
     #[allow(dead_code)]
@@ -77,7 +79,8 @@ fn read_avro<T: Serialize + for<'a> Deserialize<'a>>(path: &str) -> Result<Vec<T
 pub fn read_parquet(
     table_path: &str,
     entries: &[ManifestEntry],
-    schema: &mut PaimonSchema,
+    // schema: &mut PaimonSchema,
+    schema: Arc<Schema>,
 ) -> Result<ParquetExec, PaimonError> {
     let file_groups = entries
         .iter()
@@ -90,7 +93,6 @@ pub fn read_parquet(
         .map(|o| Into::into(o.unwrap()))
         .collect::<Vec<PartitionedFile>>();
 
-    let file_schema = to_schema_ref(schema);
     // Create a async parquet reader builder with batch_size.
     // batch_size is the number of rows to read up to buffer once from pages, defaults to 1024
 
@@ -99,7 +101,7 @@ pub fn read_parquet(
         FileScanConfig {
             object_store_url: ObjectStoreUrl::local_filesystem(),
             file_groups: vec![file_groups],
-            file_schema,
+            file_schema: schema,
             statistics: Statistics::default(),
             projection: None,
             limit: None,
@@ -121,7 +123,7 @@ mod tests {
     use super::*;
     use crate::datafusion::paimon::{
         error::PaimonError, exec::MergeExec, manifest::ManifestEntry, snapshot::SnapshotManager,
-        PartitionKeys, PrimaryKeys,
+        to_schema_ref, PartitionKeys, PrimaryKeys, WriteMode,
     };
     use arrow::util::pretty::print_batches as arrow_print_batches;
     use datafusion::{
@@ -146,21 +148,30 @@ mod tests {
 
         // let snapshot = manager.snapshot(5).unwrap();
         let snapshot = manager.latest_snapshot().unwrap();
-        let mut schema = snapshot.get_schema(table_path).unwrap();
+        let mut paimon_schema = snapshot.get_schema(table_path).unwrap();
+        let schema = to_schema_ref(&mut paimon_schema);
         let entries = snapshot.base(table_path).unwrap();
-        let parquet_exec = read_parquet(table_path, &entries, &mut schema)?;
+        let parquet_exec = read_parquet(table_path, &entries, schema)?;
 
-        let options = schema.options.clone();
-        let pk = schema.primary_keys.clone();
-        let partition_keys = schema.partition_keys.clone();
+        let options = paimon_schema.options.clone();
+        let pk = paimon_schema.primary_keys.clone();
+        let partition_keys = paimon_schema.partition_keys.clone();
+
+        let write_mode = if pk.is_empty() {
+            WriteMode::Appendonly
+        } else {
+            WriteMode::Changelog
+        };
 
         // 设置上下文参数：主键、分区键、任务参数
         let primary_keys_ext = Arc::new(PrimaryKeys(pk));
         let partition_keys_ext = Arc::new(PartitionKeys(partition_keys));
+        let write_mode_ext = Arc::new(write_mode);
         let session_config = SessionConfig::from_string_hash_map(options)
             .unwrap()
             .with_extension(Arc::clone(&primary_keys_ext))
-            .with_extension(Arc::clone(&partition_keys_ext));
+            .with_extension(Arc::clone(&partition_keys_ext))
+            .with_extension(Arc::clone(&write_mode_ext));
 
         let session_ctx = SessionContext::with_config(session_config);
         let task_ctx = session_ctx.task_ctx();

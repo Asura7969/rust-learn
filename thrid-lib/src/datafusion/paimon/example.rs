@@ -22,8 +22,6 @@ use std::sync::{Arc, Mutex};
 use std::time::Duration;
 use tokio::time::timeout;
 
-use super::{get_latest_metedata_file, to_schema_ref};
-
 /// This example demonstrates executing a simple query against a custom datasource
 #[tokio::main]
 #[allow(dead_code)]
@@ -81,10 +79,6 @@ async fn search_accounts(
 struct User {
     id: u8,
     bank_account: u64,
-}
-
-pub struct PaimonDataSource {
-    path: String,
 }
 
 /// A custom datasource, used to represent a datastore with a single index
@@ -147,38 +141,6 @@ impl Default for CustomDataSource {
 }
 
 /// TableProvider
-
-#[async_trait]
-impl TableProvider for PaimonDataSource {
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-
-    fn schema(&self) -> SchemaRef {
-        let table_path = self.path.as_str();
-        let snapshot = get_latest_metedata_file(table_path).expect("read snapshot failed ...");
-        let mut schema = snapshot
-            .get_schema(table_path)
-            .expect("read schema failed ...");
-        to_schema_ref(&mut schema)
-    }
-
-    fn table_type(&self) -> TableType {
-        TableType::Base
-    }
-
-    async fn scan(
-        &self,
-        _state: &SessionState,
-        _projection: Option<&Vec<usize>>,
-        // filters and limit can be used here to inject some push-down operations if needed
-        _filters: &[Expr],
-        _limit: Option<usize>,
-    ) -> Result<Arc<dyn ExecutionPlan>> {
-        // return self.create_physical_plan(projection, self.schema()).await;
-        todo!()
-    }
-}
 
 #[async_trait]
 impl TableProvider for CustomDataSource {

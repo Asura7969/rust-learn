@@ -1,9 +1,9 @@
 use std::{any::Any, sync::Arc};
 
 use ahash::{AHashMap, RandomState};
-use arrow::compute::{filter_record_batch, gt_scalar};
+use arrow::compute::filter_record_batch;
 use arrow_array::cast::downcast_array;
-use arrow_array::{BooleanArray, Int8Array, RecordBatch, StringArray, UInt64Array};
+use arrow_array::{BooleanArray, Int8Array, RecordBatch, UInt64Array};
 use arrow_select::concat::concat_batches;
 use datafusion::arrow::datatypes::SchemaRef;
 use datafusion::physical_plan::collect;
@@ -19,13 +19,9 @@ use datafusion::{
     },
 };
 use datafusion_common::Result;
-// use datafusion::error::Result;
 use datafusion_common::Statistics;
 
 use crate::datafusion::paimon::PrimaryKeys;
-// use itertools::Itertools;
-
-// use futures::StreamExt;
 
 #[allow(dead_code)]
 #[derive(Debug, Clone)]
@@ -35,7 +31,6 @@ pub struct MergeExec {
 }
 
 impl MergeExec {
-    /// Create a new MergeExec
     #[allow(dead_code)]
     pub fn new(input: Arc<dyn ExecutionPlan>) -> Self {
         MergeExec { input }
@@ -61,7 +56,6 @@ impl ExecutionPlan for MergeExec {
     }
 
     fn children(&self) -> Vec<Arc<dyn ExecutionPlan>> {
-        // this is a leaf node and has no children
         vec![]
     }
 
@@ -80,14 +74,11 @@ impl ExecutionPlan for MergeExec {
         Result::Ok(self)
     }
 
-    /// see AnalyzeExec
     fn execute(
         &self,
         _partition: usize,
         context: Arc<TaskContext>,
     ) -> Result<SendableRecordBatchStream> {
-        // let mut builder = RecordBatchReceiverStream::builder(self.schema(), 1);
-        // let mut input_stream = builder.build();
         let captured_input = self.input.clone();
         let captured_schema = self.input.schema();
 
@@ -109,50 +100,29 @@ async fn merge_batch(
 ) -> Result<RecordBatch> {
     let records: Vec<RecordBatch> = collect(input, context.clone()).await?;
     let batch = concat_batches(&schema, records.iter())?;
-    // column_by_name
-    // use arrow_select::take::take;
-    let arr: Int8Array = downcast_array(batch.column(2).as_ref());
-    let filter = gt_scalar(&arr, 0i8).unwrap();
-    let delete_or_update = filter_record_batch(&batch, &filter).unwrap();
-    if delete_or_update.num_rows() == 0 {
-        return std::result::Result::Ok(batch);
-    }
+    // let arr: Int8Array = downcast_array(batch.column(2).as_ref());
+    // let filter = gt_scalar(&arr, 0i8)?;
+    // let delete_or_update = filter_record_batch(&batch, &filter)?;
+    // if delete_or_update.num_rows() == 0 {
+    //     return Ok(batch);
+    // }
+    let map = hash_pk_for_batch(&batch, context)?;
+    let count = batch.num_rows();
 
-    let inner_field = batch.project(&[0, 1, 2])?;
-    let count = inner_field.num_rows();
-    let pk: StringArray = downcast_array(inner_field.column(0));
-    let seq: UInt64Array = downcast_array(inner_field.column(1));
-    let kind: Int8Array = downcast_array(inner_field.column(2));
-    let mut map: AHashMap<&str, (&str, u64, i8, usize)> = AHashMap::new();
-
-    for idx in 0..count {
-        let pk_v = pk.value(idx);
-        let seq_v = seq.value(idx);
-        let kind_v = kind.value(idx);
-
-        match kind_v {
-            0 | 2 => {
-                map.insert(pk_v, (pk_v, seq_v, kind_v, idx));
-            }
-            1 => {}
-            3 => {
-                map.remove(pk_v);
-            }
-            _ => panic!("unknown rowkind, maybe new kind"),
-        };
-    }
     let idx = map
         .into_values()
-        .map(|(_, _, _, idx)| idx)
+        .map(|(_, _, idx)| idx)
         .collect::<Vec<usize>>();
     let idx: Vec<_> = (0..count).map(|x| idx.contains(&x)).collect();
     let merge_filter: BooleanArray = BooleanArray::from(idx);
-    let batch = filter_record_batch(&batch, &merge_filter).unwrap();
-    std::result::Result::Ok(batch)
+    let batch = filter_record_batch(&batch, &merge_filter)?;
+    Ok(batch)
 }
 
-#[allow(dead_code)]
-fn extract_merge_key(batch: &RecordBatch, ctx: Arc<TaskContext>) {
+fn hash_pk_for_batch(
+    batch: &RecordBatch,
+    ctx: Arc<TaskContext>,
+) -> Result<AHashMap<u64, (u64, i8, usize)>> {
     let pks = &ctx
         .session_config()
         .get_extension::<PrimaryKeys>()
@@ -172,29 +142,32 @@ fn extract_merge_key(batch: &RecordBatch, ctx: Arc<TaskContext>) {
         .collect::<Result<Vec<_>>>()
         .unwrap();
     let random_state = RandomState::with_seeds(0, 0, 0, 0);
-    let mut hashes_buffer = vec![0; batch.num_rows()];
+    let mut batch_hashes = vec![0; batch.num_rows()];
 
-    let _hash_values = create_hashes(&keys_values, &random_state, &mut hashes_buffer).unwrap();
+    create_hashes(&keys_values, &random_state, &mut batch_hashes)?;
 
-    let _seq: UInt64Array = downcast_array(batch.column(pk_len));
-    let _kind: Int8Array = downcast_array(batch.column(pk_len + 1));
+    let seq: UInt64Array = downcast_array(batch.column(pk_len));
+    let kind: Int8Array = downcast_array(batch.column(pk_len + 1));
 
-    let _row_num = batch.num_rows();
+    let mut map: AHashMap<u64, (u64, i8, usize)> = AHashMap::new();
+    for (idx, &hash) in batch_hashes.iter().enumerate() {
+        let seq_v = seq.value(idx);
+        let kind_v = kind.value(idx);
 
-    todo!()
+        // 0: APPEND
+        // 1: UPDATE_BEFORE
+        // 2: UPDATE_AFTER
+        // 3: DELETE
+        match kind_v {
+            0 | 1 | 2 => {
+                map.insert(hash, (seq_v, kind_v, idx));
+            }
+            3 => {
+                map.remove(&hash);
+            }
+            _ => panic!("unknown rowkind, maybe new kind"),
+        };
+    }
+
+    Ok(map)
 }
-
-// fn print_primitive<T: ByteArrayType>(array: &dyn Array) -> &GenericByteArray<T> {
-//     downcast_primitive_array!(
-//         array => array,
-//         DataType::Utf8 => as_string_array(array),
-//         t => panic!("Unsupported datatype {}", t)
-//     )
-// }
-
-// struct RowBatch<T> {
-//     pk: T,
-//     seq: u64,
-//     kind: i8,
-//     idx: usize,
-// }

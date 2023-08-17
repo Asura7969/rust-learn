@@ -31,6 +31,12 @@ pub struct PrimaryKeys(Vec<String>);
 #[allow(dead_code)]
 pub struct PartitionKeys(Vec<String>);
 
+#[allow(dead_code)]
+pub enum WriteMode {
+    Appendonly,
+    Changelog,
+}
+
 #[derive(Serialize, Deserialize, PartialEq, Eq, Debug)]
 pub enum CommitKind {
     #[serde(rename = "APPEND")]
