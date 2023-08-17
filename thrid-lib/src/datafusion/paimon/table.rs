@@ -15,7 +15,7 @@ use super::{get_latest_metedata_file, snapshot::SnapshotManager, to_schema_ref};
 #[allow(dead_code)]
 pub struct PaimonDataSource {
     pub table_path: ListingTableUrl,
-    snapshot_manager: SnapshotManager,
+    pub(crate) snapshot_manager: SnapshotManager,
 }
 
 #[allow(dead_code)]
@@ -57,10 +57,25 @@ impl TableProvider for PaimonDataSource {
         _filters: &[Expr],
         _limit: Option<usize>,
     ) -> Result<Arc<dyn ExecutionPlan>> {
-        let schema = self.schema();
+        // let schema = self.schema();
         let snapshot = self.snapshot_manager.latest_snapshot().unwrap();
+        let mut schema = snapshot.get_schema(self.table_path.as_str()).unwrap();
         let entries = snapshot.base(self.table_path.as_str()).unwrap();
-        let parquet_exec = read_parquet(self.table_path.as_str(), &entries, schema).unwrap();
+        let parquet_exec = read_parquet(self.table_path.as_str(), &entries, &mut schema).unwrap();
         Ok(Arc::new(MergeExec::new(Arc::new(parquet_exec))))
+    }
+}
+
+#[allow(unused_imports)]
+#[cfg(test)]
+mod tests {
+    use crate::datafusion::paimon::error::PaimonError;
+
+    use super::*;
+    #[tokio::test]
+    async fn table_test() -> Result<(), PaimonError> {
+        let url = ListingTableUrl::parse("file:///foo/file").unwrap();
+        println!("{}", url.as_str());
+        Ok(())
     }
 }
