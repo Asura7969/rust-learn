@@ -159,10 +159,19 @@ impl SnapshotManager {
 
 #[cfg(test)]
 mod tests {
-    use crate::datafusion::paimon::get_latest_metedata_file;
 
     use super::*;
 
+    pub(crate) fn get_latest_metedata_file(table_path: &str) -> Result<Snapshot, PaimonError> {
+        let latest_path = format!("{}/snapshot/LATEST", table_path);
+        let latest_num = read_to_string(latest_path.as_str())?;
+
+        let latest_path = format!("{}/snapshot/snapshot-{}", table_path, latest_num);
+
+        let content = read_to_string(latest_path.as_str())?;
+        let snapshot = serde_json::from_str(content.as_str())?;
+        Ok(snapshot)
+    }
     #[test]
     fn read_snapshot() -> Result<(), PaimonError> {
         let table_path = "src/test/paimon/default.db/ods_mysql_paimon_points_5";

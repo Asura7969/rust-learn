@@ -6,13 +6,10 @@ use std::{
     fs,
 };
 
-use crate::datafusion::paimon::utils::read_to_string;
-
 use self::{
     error::PaimonError,
     manifest_list::ManifestFileMeta,
     reader::{manifest_list, FileFormat},
-    snapshot::Snapshot,
     utils::from,
 };
 
@@ -143,15 +140,4 @@ pub(crate) fn to_schema_ref(schema: &mut PaimonSchema) -> SchemaRef {
     ];
     system_fields.append(&mut fields);
     SchemaRef::new(Schema::new(system_fields))
-}
-
-pub(crate) fn get_latest_metedata_file(table_path: &str) -> Result<Snapshot, PaimonError> {
-    let latest_path = format!("{}/snapshot/LATEST", table_path);
-    let latest_num = read_to_string(latest_path.as_str())?;
-
-    let latest_path = format!("{}/snapshot/snapshot-{}", table_path, latest_num);
-
-    let content = read_to_string(latest_path.as_str())?;
-    let snapshot = serde_json::from_str(content.as_str())?;
-    Ok(snapshot)
 }

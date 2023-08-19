@@ -22,4 +22,6 @@ pub enum PaimonError {
     // Unknown,
     #[error(transparent)]
     Other(#[from] anyhow::Error),
+    // #[error("`{0}`")]
+    // SnapshotError(String),
 }
