@@ -89,7 +89,12 @@ impl ExecutionPlan for MergeExec {
     }
 
     fn statistics(&self) -> Statistics {
-        unimplemented!()
+        Statistics {
+            num_rows: None,
+            total_byte_size: None,
+            column_statistics: None,
+            is_exact: false,
+        }
     }
 }
 

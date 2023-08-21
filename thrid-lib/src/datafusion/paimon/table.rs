@@ -14,8 +14,9 @@ use datafusion_expr::{AggregateUDF, Expr, ScalarUDF, TableSource, TableType, Win
 use crate::datafusion::paimon::{exec::MergeExec, reader::read_parquet};
 
 use super::{
+    error::PaimonError,
     snapshot::{Snapshot, SnapshotManager},
-    to_schema_ref,
+    to_schema_ref, PaimonSchema,
 };
 
 #[allow(dead_code)]
@@ -31,6 +32,11 @@ impl PaimonProvider {
             table_path,
             snapshot,
         }
+    }
+
+    pub fn get_paimon_schema(&self) -> Result<PaimonSchema, PaimonError> {
+        let table_path = &self.table_path;
+        self.snapshot.get_schema(table_path.prefix().as_ref())
     }
 }
 
@@ -62,6 +68,7 @@ impl TableProvider for PaimonProvider {
         _filters: &[Expr],
         _limit: Option<usize>,
     ) -> Result<Arc<dyn ExecutionPlan>> {
+        println!("TableProvider scan");
         let table_path = self.table_path.prefix().as_ref();
         let mut schema = self.snapshot.get_schema(table_path).unwrap();
         let entries = self.snapshot.base(table_path).unwrap();
@@ -120,14 +127,39 @@ impl TableSource for PaimonDataSource {
 }
 
 // #[derive(Default)]
-pub struct PaimonContextProvider<'a> {
-    _state: &'a SessionState,
+pub struct PaimonContextProvider {
+    // _state: &'a SessionState,
     options: ConfigOptions,
     manager: SnapshotManager,
     url: ListingTableUrl,
 }
 
-impl<'a> ContextProvider for PaimonContextProvider<'a> {
+#[allow(dead_code)]
+impl PaimonContextProvider {
+    pub fn latest_snapshot(&self) -> Result<Arc<PaimonProvider>, PaimonError> {
+        let snapshot = self
+            .manager
+            .latest_snapshot()
+            .expect("not find latest snapshot");
+        Ok(Arc::new(PaimonProvider {
+            table_path: self.url.clone(),
+            snapshot,
+        }))
+    }
+
+    pub fn snapshot(&self, id: i64) -> Result<Arc<PaimonProvider>, PaimonError> {
+        let snapshot = self
+            .manager
+            .snapshot(id)
+            .unwrap_or_else(|_| panic!("read snapshot failed, id: {}", id));
+        Ok(Arc::new(PaimonProvider {
+            table_path: self.url.clone(),
+            snapshot,
+        }))
+    }
+}
+
+impl ContextProvider for PaimonContextProvider {
     /// Select the snapshot to read
     /// like mytable  -> read latest snapshot
     ///      mytable$snapshot=1  -> read snapshot id = 1
@@ -180,32 +212,68 @@ impl<'a> ContextProvider for PaimonContextProvider<'a> {
 #[allow(unused_imports)]
 #[cfg(test)]
 mod tests {
-    use datafusion::{datasource::provider_as_source, prelude::SessionContext};
+    use arrow::util::pretty::print_batches as arrow_print_batches;
+    use datafusion::{
+        datasource::provider_as_source,
+        prelude::{SessionConfig, SessionContext},
+    };
     use datafusion_expr::LogicalPlan;
     use datafusion_sql::planner::{ParserOptions, SqlToRel};
 
     use super::*;
     use std::{collections::hash_map::Entry, path::PathBuf};
 
-    use crate::datafusion::paimon::{error::PaimonError, test_paimonm_table_path};
+    use crate::datafusion::paimon::{
+        error::PaimonError, test_paimonm_table_path, PartitionKeys, PrimaryKeys, WriteMode,
+    };
 
     use super::*;
     #[tokio::test]
     async fn table_test() -> Result<(), PaimonError> {
-        // let binding = test_paimonm_table_path("many_pk_table");
-        // let path = binding.to_str().unwrap();
+        let binding = test_paimonm_table_path("ods_mysql_paimon_points_5");
+        let path = binding.to_str().unwrap();
 
-        // let sql = "select * from many_pk_table";
+        let sql = "select * from ods_mysql_paimon_points_5";
 
-        // let ctx = SessionContext::new();
-        // let state = &ctx.state();
+        let manager = SnapshotManager::new(path);
 
-        // let dialect = state.config_options().sql_parser.dialect.as_str();
-        // let statement = state.sql_to_statement(sql, dialect)?;
-        // let logical_plan = statement_to_plan(state, statement, path).await?;
+        let provider = PaimonContextProvider {
+            options: ConfigOptions::default(),
+            manager,
+            url: ListingTableUrl::parse(path).unwrap(),
+        };
 
-        // let df = ctx.execute_logical_plan(logical_plan).await?;
-        // df.show().await?;
+        let provider = provider.latest_snapshot()?;
+
+        let paimon_schema = provider.get_paimon_schema()?;
+
+        let options = paimon_schema.options.clone();
+        let pk = paimon_schema.primary_keys.clone();
+        let partition_keys = paimon_schema.partition_keys.clone();
+
+        let write_mode = if pk.is_empty() {
+            WriteMode::Appendonly
+        } else {
+            WriteMode::Changelog
+        };
+
+        // 设置上下文参数：主键、分区键、任务参数
+        let primary_keys_ext = Arc::new(PrimaryKeys(pk));
+        let partition_keys_ext = Arc::new(PartitionKeys(partition_keys));
+        let write_mode_ext = Arc::new(write_mode);
+        let session_config = SessionConfig::from_string_hash_map(options)
+            .unwrap()
+            .with_extension(Arc::clone(&primary_keys_ext))
+            .with_extension(Arc::clone(&partition_keys_ext))
+            .with_extension(Arc::clone(&write_mode_ext));
+
+        let ctx = SessionContext::with_config(session_config);
+
+        ctx.register_table("ods_mysql_paimon_points_5", provider)?;
+
+        let df = ctx.sql(sql).await?;
+        let batch = df.collect().await?;
+        arrow_print_batches(&batch).unwrap();
         Ok(())
     }
 
@@ -219,7 +287,6 @@ mod tests {
 
         let manager = SnapshotManager::new(path);
         let provider = PaimonContextProvider {
-            _state: state,
             options: ConfigOptions::default(),
             manager,
             url: ListingTableUrl::parse(path).unwrap(),
