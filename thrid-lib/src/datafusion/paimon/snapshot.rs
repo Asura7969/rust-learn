@@ -160,6 +160,8 @@ impl SnapshotManager {
 #[cfg(test)]
 mod tests {
 
+    use crate::datafusion::paimon::test_paimonm_table_path;
+
     use super::*;
 
     pub(crate) fn get_latest_metedata_file(table_path: &str) -> Result<Snapshot, PaimonError> {
@@ -174,7 +176,8 @@ mod tests {
     }
     #[test]
     fn read_snapshot() -> Result<(), PaimonError> {
-        let table_path = "src/test/paimon/default.db/ods_mysql_paimon_points_5";
+        let path = test_paimonm_table_path("ods_mysql_paimon_points_5");
+        let table_path = path.to_str().unwrap();
         let json = r#"
             {
                 "version" : 3,

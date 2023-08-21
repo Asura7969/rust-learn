@@ -4,6 +4,7 @@ use serde::{Deserialize, Serialize};
 use std::{
     collections::{BTreeMap, HashMap},
     fs,
+    path::PathBuf,
 };
 
 use self::{
@@ -140,4 +141,15 @@ pub(crate) fn to_schema_ref(schema: &mut PaimonSchema) -> SchemaRef {
     ];
     system_fields.append(&mut fields);
     SchemaRef::new(Schema::new(system_fields))
+}
+
+#[allow(dead_code)]
+pub(crate) fn test_paimonm_table_path(table_name: &str) -> PathBuf {
+    let mut config_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    config_path.push("src");
+    config_path.push("test");
+    config_path.push("paimon");
+    config_path.push("default.db");
+    config_path.push(table_name);
+    config_path
 }
