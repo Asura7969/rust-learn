@@ -5,7 +5,7 @@ use datafusion::{
 };
 use datafusion_common::{config::ConfigOptions, TableReference};
 use datafusion_sql::planner::ContextProvider;
-use std::{any::Any, sync::Arc};
+use std::{any::Any, collections::HashMap, sync::Arc};
 
 use async_trait::async_trait;
 use datafusion::{
@@ -14,7 +14,10 @@ use datafusion::{
 };
 use datafusion_expr::{AggregateUDF, Expr, ScalarUDF, TableSource, TableType, WindowUDF};
 
-use crate::datafusion::paimon::{exec::MergeExec, reader::read_parquet};
+use crate::datafusion::{
+    builder::PaimonTableBuilder,
+    paimon::{exec::MergeExec, reader::read_parquet},
+};
 
 use super::{
     error::PaimonError,
@@ -160,6 +163,32 @@ impl ContextProvider for PaimonContextProvider {
     fn options(&self) -> &ConfigOptions {
         &self.options
     }
+}
+
+pub async fn open_table(table_uri: impl AsRef<str>) -> datafusion::error::Result<PaimonProvider> {
+    let table = PaimonTableBuilder::from_uri(table_uri).load().await?;
+    Ok(table)
+}
+
+/// Same as `open_table`, but also accepts storage options to aid in building the table for a deduced
+/// `StorageService`.
+pub async fn open_table_with_storage_options(
+    table_uri: impl AsRef<str>,
+    storage_options: HashMap<String, String>,
+) -> datafusion::error::Result<PaimonProvider> {
+    let table = PaimonTableBuilder::from_uri(table_uri)
+        .with_storage_options(storage_options)
+        .load()
+        .await?;
+    Ok(table)
+}
+
+#[allow(dead_code)]
+pub async fn open_table_with_version(
+    _table_uri: impl AsRef<str>,
+    _tag: impl AsRef<str>,
+) -> datafusion::error::Result<PaimonProvider> {
+    todo!()
 }
 
 #[allow(unused_imports)]

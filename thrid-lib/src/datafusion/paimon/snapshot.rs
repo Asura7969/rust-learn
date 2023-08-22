@@ -110,7 +110,7 @@ impl Snapshot {
     }
 }
 
-pub(crate) struct SnapshotManager {
+pub struct SnapshotManager {
     table_path: String,
 }
 

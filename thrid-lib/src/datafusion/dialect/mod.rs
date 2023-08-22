@@ -1,7 +1,9 @@
+pub mod query;
+
 use std::fmt;
 
 use datafusion_sql::sqlparser::{
-    ast::{SqlOption, Statement},
+    ast::{Offset, OffsetRows, Query, SqlOption, Statement, With},
     dialect::Dialect,
     keywords::Keyword,
     parser::{Parser, ParserError},
@@ -21,20 +23,83 @@ impl Dialect for PaimonDialect {
     }
 
     fn parse_statement(&self, parser: &mut Parser) -> Option<Result<Statement, ParserError>> {
-        println!("parse_statement ......");
-
         if parser.parse_keyword(Keyword::SELECT) {
-            println!("SELECT ......");
-
-            Some(parse_query(parser))
+            parser.prev_token();
+            Some(Ok(Statement::Query(Box::new(
+                parse_query(parser).expect("sql parser error"),
+            ))))
         } else {
             None
         }
     }
 }
 
-pub fn parse_query(_parser: &mut Parser) -> Result<Statement, ParserError> {
-    todo!()
+// pub fn parse_query(_parser: &mut Parser) -> Result<Statement, ParserError> {
+//     todo!()
+// }
+
+pub fn parse_query(parser: &mut Parser) -> Result<Query, ParserError> {
+    // let _guard = parser.recursion_counter.try_decrease()?;
+    let with = if parser.parse_keyword(Keyword::WITH) {
+        Some(With {
+            recursive: parser.parse_keyword(Keyword::RECURSIVE),
+            cte_tables: parser.parse_comma_separated(Parser::parse_cte)?,
+        })
+    } else {
+        None
+    };
+
+    let body = Box::new(parser.parse_query_body(0)?);
+
+    let order_by = if parser.parse_keywords(&[Keyword::ORDER, Keyword::BY]) {
+        parser.parse_comma_separated(Parser::parse_order_by_expr)?
+    } else {
+        vec![]
+    };
+
+    let mut limit = None;
+    let mut offset = None;
+
+    for _x in 0..2 {
+        if limit.is_none() && parser.parse_keyword(Keyword::LIMIT) {
+            limit = parser.parse_limit()?
+        }
+
+        if offset.is_none() && parser.parse_keyword(Keyword::OFFSET) {
+            offset = Some(parser.parse_offset()?)
+        }
+
+        if limit.is_some() && offset.is_none() && parser.consume_token(&Token::Comma) {
+            // MySQL style LIMIT x,y => LIMIT y OFFSET x.
+            // Check <https://dev.mysql.com/doc/refman/8.0/en/select.html> for more details.
+            offset = Some(Offset {
+                value: limit.unwrap(),
+                rows: OffsetRows::None,
+            });
+            limit = Some(parser.parse_expr()?);
+        }
+    }
+
+    let fetch = if parser.parse_keyword(Keyword::FETCH) {
+        Some(parser.parse_fetch()?)
+    } else {
+        None
+    };
+
+    let mut locks = Vec::new();
+    while parser.parse_keyword(Keyword::FOR) {
+        locks.push(parser.parse_lock()?);
+    }
+
+    Ok(Query {
+        with,
+        body,
+        order_by,
+        limit,
+        offset,
+        fetch,
+        locks,
+    })
 }
 
 #[allow(dead_code)]

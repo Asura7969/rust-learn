@@ -14,14 +14,14 @@ use self::{
     utils::from,
 };
 
-mod error;
+pub mod error;
 mod example;
 mod exec;
 mod manifest;
 mod manifest_list;
 mod reader;
-mod snapshot;
-mod table;
+pub mod snapshot;
+pub mod table;
 mod utils;
 
 #[allow(dead_code)]
