@@ -1,3 +1,4 @@
+use datafusion_sql::sqlparser::parser::ParserError;
 use parquet::errors::ParquetError;
 use thiserror::Error;
 
@@ -24,4 +25,6 @@ pub enum PaimonError {
     Other(#[from] anyhow::Error),
     // #[error("`{0}`")]
     // SnapshotError(String),
+    #[error("parser error")]
+    ParserError(#[from] ParserError),
 }

@@ -1,1 +1,2 @@
+mod dialect;
 mod paimon;
