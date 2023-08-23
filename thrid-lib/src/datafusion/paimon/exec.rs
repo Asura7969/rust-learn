@@ -21,19 +21,23 @@ use datafusion::{
 use datafusion_common::Result;
 use datafusion_common::Statistics;
 
-use crate::datafusion::paimon::PrimaryKeys;
+use super::PaimonSchema;
 
 #[allow(dead_code)]
 #[derive(Debug, Clone)]
 pub struct MergeExec {
     pub(crate) input: Arc<dyn ExecutionPlan>,
+    paimon_schema: PaimonSchema,
     // merge_func: Fn<>
 }
 
 impl MergeExec {
     #[allow(dead_code)]
-    pub fn new(input: Arc<dyn ExecutionPlan>) -> Self {
-        MergeExec { input }
+    pub fn new(paimon_schema: PaimonSchema, input: Arc<dyn ExecutionPlan>) -> Self {
+        MergeExec {
+            paimon_schema,
+            input,
+        }
     }
 }
 
@@ -84,7 +88,12 @@ impl ExecutionPlan for MergeExec {
 
         Result::Ok(Box::pin(RecordBatchStreamAdapter::new(
             self.input.schema(),
-            futures::stream::once(merge_batch(captured_input, captured_schema, context)),
+            futures::stream::once(merge_batch(
+                captured_input,
+                captured_schema,
+                context,
+                self.paimon_schema.clone(),
+            )),
         )))
     }
 
@@ -102,16 +111,29 @@ async fn merge_batch(
     input: Arc<dyn ExecutionPlan>,
     schema: SchemaRef,
     context: Arc<TaskContext>,
+    paimon_schema: PaimonSchema,
 ) -> Result<RecordBatch> {
     let records: Vec<RecordBatch> = collect(input, context.clone()).await?;
     let batch = concat_batches(&schema, records.iter())?;
+
+    // let options = paimon_schema.options.clone();
+    let pk = paimon_schema.primary_keys.clone();
+    // let partition_keys = paimon_schema.partition_keys.clone();
+
+    if pk.is_empty() {
+        // Appendonly
+        return Ok(batch);
+    }
+    // Changelog
+
     // let arr: Int8Array = downcast_array(batch.column(2).as_ref());
     // let filter = gt_scalar(&arr, 0i8)?;
     // let delete_or_update = filter_record_batch(&batch, &filter)?;
     // if delete_or_update.num_rows() == 0 {
     //     return Ok(batch);
     // }
-    let map = hash_pk_for_batch(&batch, context)?;
+
+    let map = hash_pk_for_batch(&batch, context, &pk)?;
     let count = batch.num_rows();
 
     let idx = map
@@ -126,14 +148,9 @@ async fn merge_batch(
 
 fn hash_pk_for_batch(
     batch: &RecordBatch,
-    ctx: Arc<TaskContext>,
+    _ctx: Arc<TaskContext>,
+    pks: &Vec<String>,
 ) -> Result<AHashMap<u64, (u64, i8, usize)>> {
-    let pks = &ctx
-        .session_config()
-        .get_extension::<PrimaryKeys>()
-        .unwrap()
-        .0;
-
     let pk_len = pks.len();
 
     let key = pks

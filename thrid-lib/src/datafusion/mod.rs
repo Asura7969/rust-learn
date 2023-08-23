@@ -12,7 +12,7 @@ use self::paimon_datafusion::PaimonTableFactory;
 
 mod builder;
 mod dialect;
-mod paimon;
+pub mod paimon;
 mod paimon_datafusion;
 
 pub fn context_with_delta_table_factory() -> SessionContext {

@@ -77,8 +77,7 @@ impl PaimonTableBuilder {
                 .options
                 .options
                 .get(SCAN_SNAPSHOT_ID)
-                .unwrap()
-                .parse::<i64>()
+                .map(|s| s.parse::<i64>().expect("snapshot id error"))
                 .unwrap();
             manager
                 .snapshot(id)

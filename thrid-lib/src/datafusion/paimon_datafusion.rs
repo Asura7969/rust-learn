@@ -15,7 +15,7 @@ pub struct PaimonTableFactory {}
 impl TableProviderFactory for PaimonTableFactory {
     async fn create(
         &self,
-        _ctx: &SessionState,
+        _state: &SessionState,
         cmd: &CreateExternalTable,
     ) -> datafusion::error::Result<Arc<dyn TableProvider>> {
         let provider = if cmd.options.is_empty() {
@@ -23,6 +23,7 @@ impl TableProviderFactory for PaimonTableFactory {
         } else {
             open_table_with_storage_options(cmd.to_owned().location, cmd.to_owned().options).await?
         };
+
         Ok(Arc::new(provider))
     }
 }
