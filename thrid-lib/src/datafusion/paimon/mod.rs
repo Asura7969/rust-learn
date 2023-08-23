@@ -25,9 +25,9 @@ pub mod table;
 mod utils;
 
 #[allow(dead_code)]
-pub struct PrimaryKeys(Vec<String>);
+pub struct PrimaryKeys(pub Vec<String>);
 #[allow(dead_code)]
-pub struct PartitionKeys(Vec<String>);
+pub struct PartitionKeys(pub Vec<String>);
 
 #[allow(dead_code)]
 pub enum WriteMode {
@@ -55,17 +55,17 @@ fn get_manifest_list(
     manifest_list(path.as_str(), format)
 }
 
-#[derive(Serialize, Deserialize, PartialEq, Eq, Debug)]
+#[derive(Serialize, Deserialize, PartialEq, Eq, Debug, Clone)]
 pub struct PaimonSchema {
-    id: u64,
-    fields: Vec<Field>,
+    pub id: u64,
+    pub fields: Vec<Field>,
     #[serde(rename = "highestFieldId")]
-    highest_field_id: u32,
+    pub highest_field_id: u32,
     #[serde(rename = "partitionKeys")]
-    partition_keys: Vec<String>,
+    pub partition_keys: Vec<String>,
     #[serde(rename = "primaryKeys")]
-    primary_keys: Vec<String>,
-    options: HashMap<String, String>,
+    pub primary_keys: Vec<String>,
+    pub options: HashMap<String, String>,
 }
 
 impl PaimonSchema {
@@ -86,7 +86,7 @@ impl PaimonSchema {
     }
 }
 
-#[derive(Serialize, Deserialize, PartialEq, Eq, Debug)]
+#[derive(Serialize, Deserialize, PartialEq, Eq, Debug, Clone)]
 pub struct Field {
     id: u64,
     name: String,

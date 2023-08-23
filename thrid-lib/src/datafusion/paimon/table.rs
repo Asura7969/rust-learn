@@ -74,10 +74,14 @@ impl TableProvider for PaimonProvider {
         _limit: Option<usize>,
     ) -> Result<Arc<dyn ExecutionPlan>> {
         let table_path = self.table_path.prefix().as_ref();
-        let mut schema = self.snapshot.get_schema(table_path).unwrap();
+        let mut paimon_schema = self.snapshot.get_schema(table_path).unwrap();
         let entries = self.snapshot.base(table_path).unwrap();
-        let parquet_exec = read_parquet(table_path, &entries, &mut schema).unwrap();
-        Ok(Arc::new(MergeExec::new(Arc::new(parquet_exec))))
+        let parquet_exec = read_parquet(table_path, &entries, &mut paimon_schema).unwrap();
+
+        Ok(Arc::new(MergeExec::new(
+            paimon_schema,
+            Arc::new(parquet_exec),
+        )))
     }
 }
 
@@ -243,8 +247,7 @@ mod tests {
         let primary_keys_ext = Arc::new(PrimaryKeys(pk));
         let partition_keys_ext = Arc::new(PartitionKeys(partition_keys));
         let write_mode_ext = Arc::new(write_mode);
-        let session_config = SessionConfig::from_string_hash_map(options)
-            .unwrap()
+        let session_config = SessionConfig::from_string_hash_map(options)?
             .with_extension(Arc::clone(&primary_keys_ext))
             .with_extension(Arc::clone(&partition_keys_ext))
             .with_extension(Arc::clone(&write_mode_ext));

@@ -150,33 +150,15 @@ mod tests {
         let entries = snapshot.base(table_path).unwrap();
         let parquet_exec = read_parquet(table_path, &entries, &mut paimon_schema)?;
 
-        let options = paimon_schema.options.clone();
-        let pk = paimon_schema.primary_keys.clone();
-        let partition_keys = paimon_schema.partition_keys.clone();
-
-        let write_mode = if pk.is_empty() {
-            WriteMode::Appendonly
-        } else {
-            WriteMode::Changelog
-        };
-
-        // 设置上下文参数：主键、分区键、任务参数
-        let primary_keys_ext = Arc::new(PrimaryKeys(pk));
-        let partition_keys_ext = Arc::new(PartitionKeys(partition_keys));
-        let write_mode_ext = Arc::new(write_mode);
-        let session_config = SessionConfig::from_string_hash_map(options)
-            .unwrap()
-            .with_extension(Arc::clone(&primary_keys_ext))
-            .with_extension(Arc::clone(&partition_keys_ext))
-            .with_extension(Arc::clone(&write_mode_ext));
-
-        let session_ctx = SessionContext::with_config(session_config);
+        let session_ctx = SessionContext::default();
         let task_ctx = session_ctx.task_ctx();
 
-        let read: Vec<datafusion::arrow::record_batch::RecordBatch> =
-            collect(Arc::new(MergeExec::new(Arc::new(parquet_exec))), task_ctx)
-                .await
-                .unwrap();
+        let read: Vec<datafusion::arrow::record_batch::RecordBatch> = collect(
+            Arc::new(MergeExec::new(paimon_schema, Arc::new(parquet_exec))),
+            task_ctx,
+        )
+        .await
+        .unwrap();
         arrow_print_batches(&read).unwrap();
         Ok(())
     }
