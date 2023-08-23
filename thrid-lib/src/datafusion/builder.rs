@@ -86,8 +86,9 @@ impl PaimonTableBuilder {
         } else {
             manager.latest_snapshot().expect("not find latest snapshot")
         };
+        let url = ListingTableUrl::parse(path)?;
 
-        Ok(PaimonProvider::new(ListingTableUrl::parse(path)?, snapshot))
+        Ok(PaimonProvider::new(url, snapshot))
     }
 
     /// Build the [`DeltaTable`] and load its state
