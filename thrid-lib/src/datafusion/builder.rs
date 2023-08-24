@@ -100,18 +100,20 @@ impl PaimonTableBuilder {
             table_path: url,
             snapshot,
             storage: storage.clone(),
+            schema: None,
         })
     }
 
     /// Build the [`DeltaTable`] and load its state
     pub async fn load(self) -> datafusion::error::Result<PaimonProvider> {
         // let version = self.options.version.clone();
-        let table = self.build().await?;
+        let mut table = self.build().await?;
         // match version {
         //     DeltaVersion::Newest => table.load().await?,
         //     DeltaVersion::Version(v) => table.load_version(v).await?,
         //     DeltaVersion::Timestamp(ts) => table.load_with_datetime(ts).await?,
         // }
+        table.load().await?;
         Ok(table)
     }
 }

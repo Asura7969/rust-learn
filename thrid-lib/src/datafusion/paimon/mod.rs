@@ -145,16 +145,17 @@ pub(crate) fn to_schema_ref(schema: &mut PaimonSchema) -> SchemaRef {
 #[allow(dead_code)]
 pub(crate) fn test_paimonm_table_path(table_name: &str) -> PathBuf {
     let mut config_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-    config_path.push("src/test/paimon/default.db/");
+    config_path.push("src\\test\\paimon\\default.db\\");
     config_path.push(table_name);
     config_path
 }
 
+#[allow(dead_code)]
 pub(crate) async fn test_local_store(root_path: &str) -> (ListingTableUrl, Arc<DynObjectStore>) {
     // let path = "ods_mysql_paimon_points_5/snapshot/snapshot-5";
 
     let path = test_paimonm_table_path(root_path);
     let url = ListingTableUrl::parse(path.to_str().unwrap()).unwrap();
-    let store = LocalFileSystem::new_with_prefix(&Path::new(&url.prefix().as_ref())).unwrap();
+    let store = LocalFileSystem::new_with_prefix(Path::new(&url.prefix().as_ref())).unwrap();
     (url, Arc::new(store))
 }

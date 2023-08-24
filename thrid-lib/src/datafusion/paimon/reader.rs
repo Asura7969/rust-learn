@@ -153,18 +153,14 @@ mod tests {
 
     #[tokio::test]
     async fn snapshot_manager_test() -> Result<(), PaimonError> {
-        let table = "ods_mysql_paimon_points_5";
+        let path = "ods_mysql_paimon_points_5";
 
-        let table_path = test_paimonm_table_path(table);
-
-        let (url, storage) = test_local_store(table_path.to_str().unwrap()).await;
+        let (url, storage) = test_local_store(path).await;
 
         let manager = SnapshotManager::new(url.clone(), storage.clone());
 
         // let snapshot = manager.snapshot(5).unwrap();
         let snapshot = manager.latest_snapshot().await.unwrap();
-
-        let prefix_path = &url.prefix().to_string();
 
         let mut paimon_schema = snapshot.get_schema(&storage).await.unwrap();
         let entries = snapshot.base(&storage).await.unwrap();
@@ -185,11 +181,17 @@ mod tests {
 
     #[tokio::test]
     async fn read_manifest_test() -> Result<(), PaimonError> {
-        let (url, storage) =
-            test_local_store("src/test/paimon/default.db/ods_mysql_paimon_points_5/").await;
-        let path = "/manifest/manifest-5246a8f1-fdf4-4524-a2a2-fcd99dc08a1b-0";
-
-        let manifest = read_avro::<ManifestEntry>(&storage, &Path::from(path)).await?;
+        let (_url, storage) = test_local_store("ods_mysql_paimon_points_5").await;
+        // let path = "manifest\\manifest-5246a8f1-fdf4-4524-a2a2-fcd99dc08a1b-0";
+        // ;
+        let manifest = read_avro::<ManifestEntry>(
+            &storage,
+            &Path::from_iter(vec![
+                "manifest",
+                "manifest-5246a8f1-fdf4-4524-a2a2-fcd99dc08a1b-0",
+            ]),
+        )
+        .await?;
 
         let serialized = serde_json::to_string(&manifest).unwrap();
         println!("{}", serialized);

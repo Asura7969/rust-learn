@@ -1,10 +1,8 @@
 use std::sync::Arc;
 
 use anyhow::{Ok, Result};
-use bytes::Bytes;
 use chrono::Local;
 use datafusion::arrow::datatypes::{DataType, TimeUnit};
-use futures::{executor::block_on, Future};
 
 use nom::{bytes::complete::take_until, error::ErrorKind, IResult};
 use object_store::DynObjectStore;
@@ -13,28 +11,10 @@ pub(crate) async fn read_to_string(
     storage: &Arc<DynObjectStore>,
     location: &object_store::path::Path,
 ) -> Result<String> {
-    let bytes: Bytes = block_on(storage.get(location).await.unwrap().bytes().await.unwrap());
     let bytes = storage.get(location).await.unwrap().bytes().await.unwrap();
     // TODO: 简化方法
     let content = String::from_utf8_lossy(bytes.split_at(bytes.len()).0);
     Ok(content.to_string())
-}
-
-fn test(storage: &Arc<DynObjectStore>, location: object_store::path::Path) -> Result<String> {
-    let o = block_on(read_to_string_v2(storage, location));
-    o
-}
-
-pub(crate) async fn read_to_string_v2(
-    storage: &Arc<DynObjectStore>,
-    location: object_store::path::Path,
-) -> impl Future<Output = Result<String>> + '_ {
-    async move {
-        let bytes = storage.get(&location).await.unwrap().bytes().await.unwrap();
-        // TODO: 简化方法
-        let content = String::from_utf8_lossy(bytes.split_at(bytes.len()).0);
-        Ok(content.to_string())
-    }
 }
 
 pub(crate) fn time_zone() -> String {

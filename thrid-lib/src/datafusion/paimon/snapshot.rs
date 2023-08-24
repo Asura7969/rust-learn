@@ -17,6 +17,16 @@ const SNAPSHOT_PREFIX: &str = "snapshot-";
 const EARLIEST: &str = "EARLIEST";
 const LATEST: &str = "LATEST";
 
+pub struct SnapshotState {
+    pub sp: Snapshot,
+    pub schema: PaimonSchema,
+    pub all: Vec<ManifestEntry>,
+    pub base: Vec<ManifestEntry>,
+    pub delta: Vec<ManifestEntry>,
+}
+
+impl SnapshotState {}
+
 #[derive(Serialize, Deserialize, PartialEq, Eq, Debug)]
 pub struct Snapshot {
     version: Option<i32>,
@@ -114,7 +124,9 @@ impl Snapshot {
         storage: &Arc<DynObjectStore>,
         schema: &PaimonSchema,
     ) -> Vec<ManifestEntry> {
-        let list = join_all(file_meta.iter().map(|e| {
+        // let serialized = serde_json::to_string(&r).unwrap();
+        // println!("{}", serialized);
+        join_all(file_meta.iter().map(|e| {
             let _file_name = &e.file_name;
             // let err_msg = format!("read {}", file_name.as_str());
             // TODO: Custom error
@@ -122,16 +134,13 @@ impl Snapshot {
         }))
         .await
         .into_iter()
-        .map(|r| r.unwrap())
-        .flatten()
-        .collect::<Vec<ManifestEntry>>();
-        // let serialized = serde_json::to_string(&r).unwrap();
-        // println!("{}", serialized);
-        list
+        .flat_map(|r| r.unwrap())
+        .collect::<Vec<ManifestEntry>>()
     }
 }
 
 pub struct SnapshotManager {
+    #[allow(dead_code)]
     table_path: ListingTableUrl,
     storage: Arc<DynObjectStore>,
 }
@@ -182,7 +191,7 @@ impl SnapshotManager {
 #[cfg(test)]
 mod tests {
 
-    use crate::datafusion::paimon::{test_local_store, test_paimonm_table_path};
+    use crate::datafusion::paimon::test_local_store;
 
     use super::*;
 
@@ -200,10 +209,7 @@ mod tests {
     }
     #[tokio::test]
     async fn read_snapshot() -> Result<(), PaimonError> {
-        let path = test_paimonm_table_path("ods_mysql_paimon_points_5");
-        let table_path = path.to_str().unwrap();
-
-        let (url, storage) = test_local_store(table_path).await;
+        let (_url, storage) = test_local_store("ods_mysql_paimon_points_5").await;
 
         let json = r#"
             {

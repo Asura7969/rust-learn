@@ -1,4 +1,5 @@
 use datafusion::{datasource::listing::ListingTableUrl, error::Result};
+use datafusion_common::DataFusionError;
 use object_store::DynObjectStore;
 use std::{any::Any, collections::HashMap, sync::Arc};
 
@@ -14,13 +15,27 @@ use crate::datafusion::{
     paimon::{exec::MergeExec, reader::read_parquet},
 };
 
-use super::{snapshot::Snapshot, to_schema_ref};
+use super::{snapshot::Snapshot, to_schema_ref, PaimonSchema};
 
 #[allow(dead_code)]
 pub struct PaimonProvider {
     pub table_path: ListingTableUrl,
     pub(crate) snapshot: Snapshot,
     pub(crate) storage: Arc<DynObjectStore>,
+    // TODO: state 更合适，此处为临时处理方案
+    pub schema: Option<PaimonSchema>,
+}
+
+impl PaimonProvider {
+    pub async fn load(&mut self) -> datafusion::error::Result<()> {
+        let schema = self
+            .snapshot
+            .get_schema(&self.storage)
+            .await
+            .map_err(|e| DataFusionError::NotImplemented(e.to_string()))?;
+        self.schema = Some(schema);
+        Ok(())
+    }
 }
 
 // #[allow(dead_code)]
@@ -45,12 +60,7 @@ impl TableProvider for PaimonProvider {
     }
 
     fn schema(&self) -> SchemaRef {
-        let table_path = &self.table_path;
-        let mut schema = self
-            .snapshot
-            .get_schema(&self.storage)
-            .await
-            .expect("read schema failed ...");
+        let mut schema = self.schema.clone().expect("Load method not called ...");
         to_schema_ref(&mut schema)
     }
 
@@ -66,7 +76,6 @@ impl TableProvider for PaimonProvider {
         _filters: &[Expr],
         _limit: Option<usize>,
     ) -> Result<Arc<dyn ExecutionPlan>> {
-        let table_path = self.table_path.prefix().as_ref();
         let mut paimon_schema = self.snapshot.get_schema(&self.storage).await.unwrap();
         let entries = self.snapshot.base(&self.storage).await.unwrap();
         let parquet_exec = read_parquet(&self.table_path, &entries, &mut paimon_schema).unwrap();
