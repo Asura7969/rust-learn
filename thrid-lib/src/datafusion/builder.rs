@@ -1,5 +1,5 @@
 use chrono::{DateTime, Utc};
-use datafusion::datasource::listing::ListingTableUrl;
+use datafusion::{datasource::listing::ListingTableUrl, execution::context::SessionState};
 use std::{collections::HashMap, sync::Arc};
 use url::Url;
 
@@ -34,15 +34,17 @@ impl PaimonTableLoadOptions {
 pub struct PaimonTableBuilder {
     options: PaimonTableLoadOptions,
     storage_options: Option<HashMap<String, String>>,
+    state: SessionState,
 }
 
 #[allow(dead_code)]
 #[allow(unused_mut)]
 impl PaimonTableBuilder {
-    pub fn from_uri(table_uri: impl AsRef<str>) -> Self {
+    pub fn from_uri(table_uri: impl AsRef<str>, state: SessionState) -> Self {
         Self {
             options: PaimonTableLoadOptions::new(table_uri.as_ref()),
             storage_options: None,
+            state,
         }
     }
 
@@ -64,13 +66,17 @@ impl PaimonTableBuilder {
         self
     }
 
-    pub fn build(self) -> datafusion::error::Result<PaimonProvider> {
+    pub async fn build(self) -> datafusion::error::Result<PaimonProvider> {
         // let config = DeltaTableConfig {
         //     require_tombstones: self.options.require_tombstones,
         //     require_files: self.options.require_files,
         // };
         let path = self.options.table_uri;
-        let manager = SnapshotManager::new(path.as_str());
+        let url = ListingTableUrl::parse(path)?;
+
+        let storage = &self.state.runtime_env().object_store(url.clone())?;
+
+        let manager = SnapshotManager::new(url.clone(), storage.clone());
 
         let snapshot = if self.options.options.contains_key(SCAN_SNAPSHOT_ID) {
             let id = self
@@ -81,19 +87,26 @@ impl PaimonTableBuilder {
                 .unwrap();
             manager
                 .snapshot(id)
+                .await
                 .unwrap_or_else(|_| panic!("read snapshot failed, id: {}", id))
         } else {
-            manager.latest_snapshot().expect("not find latest snapshot")
+            manager
+                .latest_snapshot()
+                .await
+                .expect("not find latest snapshot")
         };
-        let url = ListingTableUrl::parse(path)?;
 
-        Ok(PaimonProvider::new(url, snapshot))
+        Ok(PaimonProvider {
+            table_path: url,
+            snapshot,
+            storage: storage.clone(),
+        })
     }
 
     /// Build the [`DeltaTable`] and load its state
     pub async fn load(self) -> datafusion::error::Result<PaimonProvider> {
         // let version = self.options.version.clone();
-        let table = self.build()?;
+        let table = self.build().await?;
         // match version {
         //     DeltaVersion::Newest => table.load().await?,
         //     DeltaVersion::Version(v) => table.load_version(v).await?,

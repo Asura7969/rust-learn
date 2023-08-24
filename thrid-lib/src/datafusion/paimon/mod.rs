@@ -1,18 +1,17 @@
 use arrow_schema::DataType;
-use datafusion::arrow::datatypes::{Field as AField, Schema, SchemaRef};
+use datafusion::{
+    arrow::datatypes::{Field as AField, Schema, SchemaRef},
+    datasource::listing::ListingTableUrl,
+};
+use object_store::{local::LocalFileSystem, DynObjectStore};
 use serde::{Deserialize, Serialize};
 use std::{
-    collections::{BTreeMap, HashMap},
-    fs,
-    path::PathBuf,
+    collections::HashMap,
+    path::{Path, PathBuf},
+    sync::Arc,
 };
 
-use self::{
-    error::PaimonError,
-    manifest_list::ManifestFileMeta,
-    reader::{manifest_list, FileFormat},
-    utils::from,
-};
+use self::{manifest_list::ManifestFileMeta, reader::FileFormat, utils::from};
 
 pub mod error;
 mod example;
@@ -45,15 +44,15 @@ pub enum CommitKind {
     Compact,
 }
 
-#[allow(dead_code)]
-fn get_manifest_list(
-    table_path: &str,
-    file_name: &str,
-    format: &FileFormat,
-) -> Result<Vec<ManifestFileMeta>, PaimonError> {
-    let path = format!("{}/manifest/{}", table_path, file_name);
-    manifest_list(path.as_str(), format)
-}
+// #[allow(dead_code)]
+// fn get_manifest_list(
+//     table_path: &str,
+//     file_name: &str,
+//     format: &FileFormat,
+// ) -> Result<Vec<ManifestFileMeta>, PaimonError> {
+//     let path = format!("{}/manifest/{}", table_path, file_name);
+//     manifest_list(path.as_str(), format)
+// }
 
 #[derive(Serialize, Deserialize, PartialEq, Eq, Debug, Clone)]
 pub struct PaimonSchema {
@@ -111,21 +110,21 @@ pub struct PartitionStat {
     null_counts: Option<Vec<i64>>,
 }
 
-#[allow(dead_code)]
-pub fn read_schema(path: &str) -> Result<BTreeMap<String, PaimonSchema>, PaimonError> {
-    let mut schema_tree = BTreeMap::new();
+// #[allow(dead_code)]
+// pub fn read_schema(path: &str) -> Result<BTreeMap<String, PaimonSchema>, PaimonError> {
+//     let mut schema_tree = BTreeMap::new();
 
-    for entry in fs::read_dir(path)? {
-        let entry = entry?;
-        let file_path = entry.path();
-        let file_name = entry.file_name().into_string().unwrap();
-        let content = fs::read_to_string(file_path)?;
-        let content = content.as_str();
-        let schema: PaimonSchema = serde_json::from_str(content)?;
-        schema_tree.insert(file_name, schema);
-    }
-    Ok(schema_tree)
-}
+//     for entry in fs::read_dir(path)? {
+//         let entry = entry?;
+//         let file_path = entry.path();
+//         let file_name = entry.file_name().into_string().unwrap();
+//         let content = read_to_string(file_path)?;
+//         let content = content.as_str();
+//         let schema: PaimonSchema = serde_json::from_str(content)?;
+//         schema_tree.insert(file_name, schema);
+//     }
+//     Ok(schema_tree)
+// }
 
 pub(crate) fn to_schema_ref(schema: &mut PaimonSchema) -> SchemaRef {
     schema.fields.sort_by(|a, b| a.id.cmp(&b.id));
@@ -146,10 +145,16 @@ pub(crate) fn to_schema_ref(schema: &mut PaimonSchema) -> SchemaRef {
 #[allow(dead_code)]
 pub(crate) fn test_paimonm_table_path(table_name: &str) -> PathBuf {
     let mut config_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-    config_path.push("src");
-    config_path.push("test");
-    config_path.push("paimon");
-    config_path.push("default.db");
+    config_path.push("src/test/paimon/default.db/");
     config_path.push(table_name);
     config_path
+}
+
+pub(crate) async fn test_local_store(root_path: &str) -> (ListingTableUrl, Arc<DynObjectStore>) {
+    // let path = "ods_mysql_paimon_points_5/snapshot/snapshot-5";
+
+    let path = test_paimonm_table_path(root_path);
+    let url = ListingTableUrl::parse(path.to_str().unwrap()).unwrap();
+    let store = LocalFileSystem::new_with_prefix(&Path::new(&url.prefix().as_ref())).unwrap();
+    (url, Arc::new(store))
 }

@@ -27,9 +27,9 @@ impl TableProviderFactory for PaimonTableFactory {
         let location = cmd.to_owned().location;
 
         let provider = if cmd.options.is_empty() {
-            open_table(location).await?
+            open_table(state, location).await?
         } else {
-            open_table_with_storage_options(location, cmd.to_owned().options).await?
+            open_table_with_storage_options(state, location, cmd.to_owned().options).await?
         };
         Ok(Arc::new(provider))
     }

@@ -1,10 +1,11 @@
-use std::fs;
+use std::sync::Arc;
 
 use apache_avro::{from_value, Reader as AvroReader};
-use datafusion::datasource::listing::PartitionedFile;
+use datafusion::datasource::listing::{ListingTableUrl, PartitionedFile};
 use datafusion::datasource::physical_plan::{FileScanConfig, ParquetExec};
-use datafusion::execution::object_store::ObjectStoreUrl;
 use datafusion_common::Statistics;
+use nom::AsBytes;
+use object_store::path::Path;
 use serde::{Deserialize, Serialize};
 
 use crate::datafusion::paimon::ManifestFileMeta;
@@ -12,7 +13,7 @@ use crate::datafusion::paimon::ManifestFileMeta;
 use super::error::PaimonError;
 use super::manifest::ManifestEntry;
 use super::{to_schema_ref, PaimonSchema};
-use object_store::ObjectMeta;
+use object_store::{DynObjectStore, ObjectMeta};
 pub enum FileFormat {
     #[allow(dead_code)]
     Parquet,
@@ -32,30 +33,39 @@ impl From<&String> for FileFormat {
     }
 }
 
-pub fn manifest_list(
-    path: &str,
+pub async fn manifest_list(
+    storage: &Arc<DynObjectStore>,
+    location: &Path,
     format: &FileFormat,
 ) -> Result<Vec<ManifestFileMeta>, PaimonError> {
     match format {
-        FileFormat::Avro => read_avro::<ManifestFileMeta>(path),
+        FileFormat::Avro => read_avro::<ManifestFileMeta>(storage, location).await,
         FileFormat::Parquet => unimplemented!(),
         FileFormat::Orc => unimplemented!(),
     }
 }
 
 #[allow(dead_code)]
-pub fn manifest(path: &str, format: &FileFormat) -> Result<Vec<ManifestEntry>, PaimonError> {
+pub async fn manifest(
+    storage: &Arc<DynObjectStore>,
+    location: &Path,
+    format: &FileFormat,
+) -> Result<Vec<ManifestEntry>, PaimonError> {
     match format {
-        FileFormat::Avro => read_avro::<ManifestEntry>(path),
+        FileFormat::Avro => read_avro::<ManifestEntry>(storage, location).await,
         FileFormat::Parquet => unimplemented!(),
         FileFormat::Orc => unimplemented!(),
     }
 }
 
-fn read_avro<T: Serialize + for<'a> Deserialize<'a>>(path: &str) -> Result<Vec<T>, PaimonError> {
+async fn read_avro<T: Serialize + for<'a> Deserialize<'a>>(
+    storage: &Arc<DynObjectStore>,
+    location: &Path,
+) -> Result<Vec<T>, PaimonError> {
     // TODO: remote read, such as OSS, HDFS, etc.
-    let r = fs::File::open(path)?;
-    let reader = AvroReader::new(r)?;
+    let bytes = storage.get(location).await.unwrap().bytes().await.unwrap();
+    // let r: fs::File = fs::File::open(path)?;
+    let reader = AvroReader::new(bytes.as_bytes())?;
     // let writer_schema = reader.writer_schema().clone();
     // println!("schema: {:?}", writer_schema);
 
@@ -76,7 +86,7 @@ fn read_avro<T: Serialize + for<'a> Deserialize<'a>>(path: &str) -> Result<Vec<T
 
 #[allow(dead_code)]
 pub fn read_parquet(
-    table_path: &str,
+    url: &ListingTableUrl,
     entries: &[ManifestEntry],
     file_schema: &mut PaimonSchema,
 ) -> Result<ParquetExec, PaimonError> {
@@ -84,7 +94,7 @@ pub fn read_parquet(
         .iter()
         .filter(|m| m.kind == 0 && m.file.is_some())
         .map(|e| {
-            let p: Option<ObjectMeta> = e.to_object_meta(table_path);
+            let p: Option<ObjectMeta> = e.to_object_meta(url.prefix().to_string().as_str());
             p
         })
         .filter(|o| o.is_some())
@@ -97,7 +107,7 @@ pub fn read_parquet(
     // schema_coercion.rs
     let parquet_exec: ParquetExec = ParquetExec::new(
         FileScanConfig {
-            object_store_url: ObjectStoreUrl::local_filesystem(),
+            object_store_url: url.object_store(),
             file_groups: vec![file_groups],
             file_schema,
             statistics: Statistics::default(),
@@ -121,12 +131,14 @@ mod tests {
     use super::*;
     use crate::datafusion::paimon::{
         error::PaimonError, exec::MergeExec, manifest::ManifestEntry, snapshot::SnapshotManager,
-        to_schema_ref, PartitionKeys, PrimaryKeys, WriteMode,
+        test_local_store, test_paimonm_table_path, to_schema_ref, PartitionKeys, PrimaryKeys,
+        WriteMode,
     };
     use arrow::util::pretty::print_batches as arrow_print_batches;
     use datafusion::{
         common::{config::ConfigExtension, extensions_options},
         config::ConfigOptions,
+        datasource::listing::ListingTableUrl,
         execution::{context::SessionState, runtime_env::RuntimeEnv, TaskContext},
         prelude::SessionConfig,
     };
@@ -141,14 +153,22 @@ mod tests {
 
     #[tokio::test]
     async fn snapshot_manager_test() -> Result<(), PaimonError> {
-        let table_path = "src/test/paimon/default.db/ods_mysql_paimon_points_5";
-        let manager = SnapshotManager::new(table_path);
+        let table = "ods_mysql_paimon_points_5";
+
+        let table_path = test_paimonm_table_path(table);
+
+        let (url, storage) = test_local_store(table_path.to_str().unwrap()).await;
+
+        let manager = SnapshotManager::new(url.clone(), storage.clone());
 
         // let snapshot = manager.snapshot(5).unwrap();
-        let snapshot = manager.latest_snapshot().unwrap();
-        let mut paimon_schema = snapshot.get_schema(table_path).unwrap();
-        let entries = snapshot.base(table_path).unwrap();
-        let parquet_exec = read_parquet(table_path, &entries, &mut paimon_schema)?;
+        let snapshot = manager.latest_snapshot().await.unwrap();
+
+        let prefix_path = &url.prefix().to_string();
+
+        let mut paimon_schema = snapshot.get_schema(&storage).await.unwrap();
+        let entries = snapshot.base(&storage).await.unwrap();
+        let parquet_exec = read_parquet(&url, &entries, &mut paimon_schema)?;
 
         let session_ctx = SessionContext::default();
         let task_ctx = session_ctx.task_ctx();
@@ -165,9 +185,11 @@ mod tests {
 
     #[tokio::test]
     async fn read_manifest_test() -> Result<(), PaimonError> {
-        let path = "src/test/paimon/default.db/ods_mysql_paimon_points_5/manifest/manifest-5246a8f1-fdf4-4524-a2a2-fcd99dc08a1b-0";
+        let (url, storage) =
+            test_local_store("src/test/paimon/default.db/ods_mysql_paimon_points_5/").await;
+        let path = "/manifest/manifest-5246a8f1-fdf4-4524-a2a2-fcd99dc08a1b-0";
 
-        let manifest = read_avro::<ManifestEntry>(path)?;
+        let manifest = read_avro::<ManifestEntry>(&storage, &Path::from(path)).await?;
 
         let serialized = serde_json::to_string(&manifest).unwrap();
         println!("{}", serialized);

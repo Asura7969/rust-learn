@@ -1,5 +1,8 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, sync::Arc};
 
+use datafusion::datasource::listing::ListingTableUrl;
+use futures::future::join_all;
+use object_store::{path::Path, DynObjectStore};
 use serde::{Deserialize, Serialize};
 
 use super::{
@@ -48,106 +51,125 @@ pub struct Snapshot {
 }
 
 impl Snapshot {
-    pub fn get_schema(&self, table_path: &str) -> Result<PaimonSchema, PaimonError> {
-        let latest_schema_path = format!("{}/schema/schema-{}", table_path, self.schema_id);
-        let schema_str = read_to_string(latest_schema_path.as_str())?;
+    pub async fn get_schema(
+        &self,
+        storage: &Arc<DynObjectStore>,
+    ) -> Result<PaimonSchema, PaimonError> {
+        let latest_schema_path = format!("/schema/schema-{}", self.schema_id);
+        let schema_str = read_to_string(storage, &Path::from(latest_schema_path)).await?;
         let schema: PaimonSchema = serde_json::from_str(schema_str.as_str())?;
         Ok(schema)
     }
 
     #[allow(dead_code)]
-    pub fn all(&self, table_path: &str) -> Result<Vec<ManifestEntry>, PaimonError> {
-        let path = format!("{}/manifest/{}", table_path, self.delta_manifest_list);
-        let schema = self.get_schema(table_path)?;
+    pub async fn all(
+        &self,
+        storage: &Arc<DynObjectStore>,
+    ) -> Result<Vec<ManifestEntry>, PaimonError> {
+        let path = format!("/manifest/{}", self.delta_manifest_list);
+        let schema = self.get_schema(storage).await?;
         let format = &schema.get_manifest_format();
-        let mut delta_file_meta = manifest_list(path.as_str(), format)?;
+        let mut delta_file_meta = manifest_list(storage, &Path::from(path), format).await?;
 
-        let path = format!("{}/manifest/{}", table_path, self.base_manifest_list);
-        let mut base_file_meta = manifest_list(path.as_str(), format)?;
+        let path = format!("/manifest/{}", self.base_manifest_list);
+        let mut base_file_meta = manifest_list(storage, &Path::from(path), format).await?;
         delta_file_meta.append(&mut base_file_meta);
-        let entry = self.get_manifest_entry(delta_file_meta, table_path, &schema);
+        let entry = self
+            .get_manifest_entry(delta_file_meta, storage, &schema)
+            .await;
         Ok(entry)
     }
 
     #[allow(dead_code)]
-    pub fn base(&self, table_path: &str) -> Result<Vec<ManifestEntry>, PaimonError> {
-        let path = format!("{}/manifest/{}", table_path, self.base_manifest_list);
-        let schema = self.get_schema(table_path)?;
-        let file_meta = manifest_list(path.as_str(), &schema.get_manifest_format())?;
+    pub async fn base(
+        &self,
+        storage: &Arc<DynObjectStore>,
+    ) -> Result<Vec<ManifestEntry>, PaimonError> {
+        let path = format!("/manifest/{}", self.base_manifest_list);
+        let schema = self.get_schema(storage).await?;
+        let file_meta =
+            manifest_list(storage, &Path::from(path), &schema.get_manifest_format()).await?;
 
-        let entry = self.get_manifest_entry(file_meta, table_path, &schema);
+        let entry = self.get_manifest_entry(file_meta, storage, &schema).await;
         Ok(entry)
     }
 
     #[allow(dead_code)]
-    pub fn delta(&self, table_path: &str) -> Result<Vec<ManifestEntry>, PaimonError> {
-        let path = format!("{}/manifest/{}", table_path, self.delta_manifest_list);
-        let schema = self.get_schema(table_path)?;
-        let file_meta = manifest_list(path.as_str(), &schema.get_manifest_format())?;
+    pub async fn delta(
+        &self,
+        storage: &Arc<DynObjectStore>,
+    ) -> Result<Vec<ManifestEntry>, PaimonError> {
+        let path = format!("/manifest/{}", self.delta_manifest_list);
+        let schema = self.get_schema(storage).await?;
+        let file_meta =
+            manifest_list(storage, &Path::from(path), &schema.get_manifest_format()).await?;
 
-        let entry = self.get_manifest_entry(file_meta, table_path, &schema);
+        let entry = self.get_manifest_entry(file_meta, storage, &schema).await;
         Ok(entry)
     }
 
-    fn get_manifest_entry(
+    async fn get_manifest_entry(
         &self,
         file_meta: Vec<ManifestFileMeta>,
-        table_path: &str,
+        storage: &Arc<DynObjectStore>,
         schema: &PaimonSchema,
     ) -> Vec<ManifestEntry> {
-        let r = file_meta
-            .iter()
-            .flat_map(|e| {
-                let _file_name = &e.file_name;
-                // let err_msg = format!("read {}", file_name.as_str());
-                // TODO: Custom error
-                e.manifest(table_path, schema).unwrap()
-            })
-            .collect::<Vec<ManifestEntry>>();
+        let list = join_all(file_meta.iter().map(|e| {
+            let _file_name = &e.file_name;
+            // let err_msg = format!("read {}", file_name.as_str());
+            // TODO: Custom error
+            e.manifest(storage, schema)
+        }))
+        .await
+        .into_iter()
+        .map(|r| r.unwrap())
+        .flatten()
+        .collect::<Vec<ManifestEntry>>();
         // let serialized = serde_json::to_string(&r).unwrap();
         // println!("{}", serialized);
-        r
+        list
     }
 }
 
 pub struct SnapshotManager {
-    table_path: String,
+    table_path: ListingTableUrl,
+    storage: Arc<DynObjectStore>,
 }
 
 #[allow(dead_code)]
 impl SnapshotManager {
-    pub(crate) fn new(table_path: &str) -> SnapshotManager {
+    pub(crate) fn new(url: ListingTableUrl, storage: Arc<DynObjectStore>) -> SnapshotManager {
         Self {
-            table_path: table_path.to_string(),
+            table_path: url,
+            storage,
         }
     }
 
     fn snapshot_path(&self, snapshot_id: i64) -> String {
-        format!(
-            "{}/snapshot/{}{}",
-            self.table_path, SNAPSHOT_PREFIX, snapshot_id
-        )
+        format!("/snapshot/{}{}", SNAPSHOT_PREFIX, snapshot_id)
     }
 
-    pub(crate) fn snapshot(&self, snapshot_id: i64) -> Result<Snapshot, PaimonError> {
+    pub(crate) async fn snapshot(&self, snapshot_id: i64) -> Result<Snapshot, PaimonError> {
         let path = self.snapshot_path(snapshot_id);
-        let content = read_to_string(path.as_str())?;
+        let content = read_to_string(&self.storage, &Path::from(path)).await?;
         let s: Snapshot = serde_json::from_str(content.as_str())?;
         Ok(s)
     }
 
-    fn latest_snapshot_id(&self) -> Option<i64> {
-        let latest_path = format!("{}/snapshot/{}", self.table_path, LATEST);
-        let id_string = read_to_string(latest_path.as_str()).unwrap();
+    async fn latest_snapshot_id(&self) -> Option<i64> {
+        let latest_path = format!("/snapshot/{}", LATEST);
+        let id_string = read_to_string(&self.storage, &Path::from(latest_path))
+            .await
+            .unwrap();
         match id_string.parse::<i64>() {
             core::result::Result::Ok(id) => Some(id),
             Err(_) => None,
         }
     }
 
-    pub(crate) fn latest_snapshot(&self) -> Option<Snapshot> {
-        if let Some(id) = self.latest_snapshot_id() {
-            match self.snapshot(id) {
+    pub(crate) async fn latest_snapshot(&self) -> Option<Snapshot> {
+        if let Some(id) = self.latest_snapshot_id().await {
+            match self.snapshot(id).await {
                 core::result::Result::Ok(s) => Some(s),
                 Err(_) => None,
             }
@@ -160,24 +182,29 @@ impl SnapshotManager {
 #[cfg(test)]
 mod tests {
 
-    use crate::datafusion::paimon::test_paimonm_table_path;
+    use crate::datafusion::paimon::{test_local_store, test_paimonm_table_path};
 
     use super::*;
 
-    pub(crate) fn get_latest_metedata_file(table_path: &str) -> Result<Snapshot, PaimonError> {
-        let latest_path = format!("{}/snapshot/LATEST", table_path);
-        let latest_num = read_to_string(latest_path.as_str())?;
+    pub(crate) async fn get_latest_metedata_file(
+        storage: &Arc<DynObjectStore>,
+    ) -> Result<Snapshot, PaimonError> {
+        let latest_path = format!("/snapshot/LATEST");
+        let latest_num = read_to_string(storage, &Path::from(latest_path)).await?;
 
-        let latest_path = format!("{}/snapshot/snapshot-{}", table_path, latest_num);
+        let latest_path = format!("/snapshot/snapshot-{}", latest_num);
 
-        let content = read_to_string(latest_path.as_str())?;
+        let content = read_to_string(storage, &Path::from(latest_path)).await?;
         let snapshot = serde_json::from_str(content.as_str())?;
         Ok(snapshot)
     }
-    #[test]
-    fn read_snapshot() -> Result<(), PaimonError> {
+    #[tokio::test]
+    async fn read_snapshot() -> Result<(), PaimonError> {
         let path = test_paimonm_table_path("ods_mysql_paimon_points_5");
         let table_path = path.to_str().unwrap();
+
+        let (url, storage) = test_local_store(table_path).await;
+
         let json = r#"
             {
                 "version" : 3,
@@ -198,7 +225,7 @@ mod tests {
             }
             "#;
         let expected: Snapshot = serde_json::from_str(json).unwrap();
-        let actual = get_latest_metedata_file(table_path)?;
+        let actual = get_latest_metedata_file(&storage).await?;
 
         assert_eq!(expected, actual);
         assert_eq!(expected.version, actual.version);
@@ -223,7 +250,7 @@ mod tests {
         );
         assert_eq!(expected.watermark, actual.watermark);
 
-        let actual = actual.get_schema(table_path)?;
+        let actual = actual.get_schema(&storage).await?;
         let schema_str = r#"
             {
                 "id" : 0,

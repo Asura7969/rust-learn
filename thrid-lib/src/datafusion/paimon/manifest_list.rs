@@ -1,3 +1,6 @@
+use std::sync::Arc;
+
+use object_store::{path::Path, DynObjectStore};
 use serde::{Deserialize, Serialize};
 
 use super::{
@@ -24,12 +27,12 @@ pub struct ManifestFileMeta {
 }
 
 impl ManifestFileMeta {
-    pub fn manifest(
+    pub async fn manifest(
         &self,
-        table_path: &str,
+        storage: &Arc<DynObjectStore>,
         schema: &PaimonSchema,
     ) -> Result<Vec<ManifestEntry>, PaimonError> {
-        let path = format!("{}/manifest/{}", table_path, self.file_name);
-        manifest(path.as_str(), &schema.get_manifest_format())
+        let path = format!("/manifest/{}", self.file_name);
+        manifest(storage, &Path::from(path), &schema.get_manifest_format()).await
     }
 }
