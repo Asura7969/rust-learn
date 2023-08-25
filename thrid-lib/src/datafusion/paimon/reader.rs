@@ -4,6 +4,7 @@ use apache_avro::{from_value, Reader as AvroReader};
 use datafusion::datasource::listing::{ListingTableUrl, PartitionedFile};
 use datafusion::datasource::physical_plan::{FileScanConfig, ParquetExec};
 use datafusion_common::Statistics;
+use datafusion_expr::Expr;
 use nom::AsBytes;
 use object_store::path::Path;
 use serde::{Deserialize, Serialize};
@@ -89,6 +90,9 @@ pub fn read_parquet(
     url: &ListingTableUrl,
     entries: &[ManifestEntry],
     file_schema: &mut PaimonSchema,
+    projection: Option<Vec<usize>>,
+    _filters: &[Expr],
+    _limit: Option<usize>,
 ) -> Result<ParquetExec, PaimonError> {
     let file_groups = entries
         .iter()
@@ -111,7 +115,7 @@ pub fn read_parquet(
             file_groups: vec![file_groups],
             file_schema,
             statistics: Statistics::default(),
-            projection: None,
+            projection,
             limit: None,
             table_partition_cols: vec![],
             output_ordering: vec![],
@@ -164,7 +168,7 @@ mod tests {
 
         let mut paimon_schema = snapshot.get_schema(&storage).await.unwrap();
         let entries = snapshot.base(&storage).await.unwrap();
-        let parquet_exec = read_parquet(&url, &entries, &mut paimon_schema)?;
+        let parquet_exec = read_parquet(&url, &entries, &mut paimon_schema, None, &[], None)?;
 
         let session_ctx = SessionContext::default();
         let task_ctx = session_ctx.task_ctx();

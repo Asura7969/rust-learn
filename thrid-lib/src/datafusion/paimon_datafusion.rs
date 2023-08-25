@@ -54,7 +54,7 @@ async fn create_external_table(
             Arc::new(builder.build()?) as Arc<dyn ObjectStore>
         }
         "file" => Arc::new(LocalFileSystem::new_with_prefix(Path::new(
-            &table_path.as_str(),
+            &table_path.prefix().as_ref(),
         ))?),
         _ => {
             // for other types, try to get from the object_store_registry
@@ -74,4 +74,48 @@ async fn create_external_table(
     state.runtime_env().register_object_store(url, store);
 
     Ok(())
+}
+
+#[allow(unused_imports)]
+#[cfg(test)]
+mod tests {
+    use crate::datafusion::{
+        context_with_delta_table_factory,
+        paimon::{error::PaimonError, test_paimonm_table_path},
+    };
+    use arrow::util::pretty::print_batches as arrow_print_batches;
+
+    #[tokio::test]
+    async fn test_datafusion_sql_registration() -> Result<(), PaimonError> {
+        let ctx = context_with_delta_table_factory();
+        let d = test_paimonm_table_path("ods_mysql_paimon_points_5");
+
+        let sql = format!(
+            "CREATE EXTERNAL TABLE ods_mysql_paimon_points_5 STORED AS PAIMON OPTIONS ('scan.snapshot-id' '5') LOCATION '{}'",
+            d.to_str().unwrap()
+        );
+
+        println!("sql: {}", sql);
+
+        let _ = ctx
+            .sql(sql.as_str())
+            .await
+            .expect("Failed to register table!");
+
+        // let batches = ctx
+        //     .sql("SELECT * FROM ods_mysql_paimon_points_5")
+        //     .await?
+        //     .collect()
+        //     .await?;
+
+        // arrow_print_batches(&batches).unwrap();
+
+        // let batch = &batches[0];
+
+        // assert_eq!(
+        //     batch.column(0).as_ref(),
+        //     Arc::new(Int32Array::from(vec![4, 5, 20, 20])).as_ref(),
+        // );
+        Ok(())
+    }
 }

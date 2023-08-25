@@ -110,22 +110,6 @@ pub struct PartitionStat {
     null_counts: Option<Vec<i64>>,
 }
 
-// #[allow(dead_code)]
-// pub fn read_schema(path: &str) -> Result<BTreeMap<String, PaimonSchema>, PaimonError> {
-//     let mut schema_tree = BTreeMap::new();
-
-//     for entry in fs::read_dir(path)? {
-//         let entry = entry?;
-//         let file_path = entry.path();
-//         let file_name = entry.file_name().into_string().unwrap();
-//         let content = read_to_string(file_path)?;
-//         let content = content.as_str();
-//         let schema: PaimonSchema = serde_json::from_str(content)?;
-//         schema_tree.insert(file_name, schema);
-//     }
-//     Ok(schema_tree)
-// }
-
 pub(crate) fn to_schema_ref(schema: &mut PaimonSchema) -> SchemaRef {
     schema.fields.sort_by(|a, b| a.id.cmp(&b.id));
     let mut fields = schema
@@ -145,7 +129,10 @@ pub(crate) fn to_schema_ref(schema: &mut PaimonSchema) -> SchemaRef {
 #[allow(dead_code)]
 pub(crate) fn test_paimonm_table_path(table_name: &str) -> PathBuf {
     let mut config_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-    config_path.push("src\\test\\paimon\\default.db\\");
+    config_path.push("src");
+    config_path.push("test");
+    config_path.push("paimon");
+    config_path.push("default.db");
     config_path.push(table_name);
     config_path
 }

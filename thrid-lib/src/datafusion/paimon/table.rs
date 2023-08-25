@@ -71,14 +71,45 @@ impl TableProvider for PaimonProvider {
     async fn scan(
         &self,
         _state: &SessionState,
-        _projection: Option<&Vec<usize>>,
-        // filters and limit can be used here to inject some push-down operations if needed
-        _filters: &[Expr],
-        _limit: Option<usize>,
+        projection: Option<&Vec<usize>>,
+        filters: &[Expr],
+        limit: Option<usize>,
     ) -> Result<Arc<dyn ExecutionPlan>> {
         let mut paimon_schema = self.snapshot.get_schema(&self.storage).await.unwrap();
         let entries = self.snapshot.base(&self.storage).await.unwrap();
-        let parquet_exec = read_parquet(&self.table_path, &entries, &mut paimon_schema).unwrap();
+
+        let new_projection = if let Some(idxes) = projection {
+            // 表的主键个数 + seq_num + RowKind
+            let pk_len = paimon_schema.primary_keys.len() + 2;
+            if pk_len == 2 {
+                // 没有主键  append only表
+                Some(idxes.clone())
+            } else {
+                let mut with_sys_column = idxes
+                    .iter()
+                    .map(|id: &usize| id + pk_len)
+                    .collect::<Vec<_>>();
+                for id in 0..pk_len {
+                    with_sys_column.push(id);
+                }
+                Some(with_sys_column)
+            }
+        } else {
+            None
+        };
+
+        println!("old projection: {:?}", projection);
+        println!("new projection: {:?}", new_projection);
+
+        let parquet_exec = read_parquet(
+            &self.table_path,
+            &entries,
+            &mut paimon_schema,
+            new_projection,
+            filters,
+            limit,
+        )
+        .unwrap();
 
         Ok(Arc::new(MergeExec::new(
             paimon_schema,

@@ -14,6 +14,7 @@
 
 ## RoadMap
 
+- [ ] 批读实现limit
 - [ ] `manifest`数据支持读取`parquet`格式
 - [ ] data数据格式支持`avro`格式
 - [ ] 本地`paimon`表读取

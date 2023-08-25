@@ -56,6 +56,7 @@ impl ExecutionPlan for MergeExec {
     }
 
     fn schema(&self) -> SchemaRef {
+        // TODO: 新增系统字段
         Arc::clone(&self.input.schema())
     }
 
