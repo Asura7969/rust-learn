@@ -7,6 +7,7 @@ use object_store::{local::LocalFileSystem, DynObjectStore};
 use serde::{Deserialize, Serialize};
 use std::{
     collections::HashMap,
+    env,
     path::{Path, PathBuf},
     sync::Arc,
 };
@@ -128,7 +129,7 @@ pub(crate) fn to_schema_ref(schema: &mut PaimonSchema) -> SchemaRef {
 
 #[allow(dead_code)]
 pub(crate) fn test_paimonm_table_path(table_name: &str) -> PathBuf {
-    let mut config_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let mut config_path = env::current_dir().unwrap();
     config_path.push("src");
     config_path.push("test");
     config_path.push("paimon");
