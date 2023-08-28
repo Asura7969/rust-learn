@@ -39,7 +39,7 @@ async fn create_external_table(
     state: &SessionState,
     cmd: &CreateExternalTable,
 ) -> datafusion::error::Result<()> {
-    let table_path = ListingTableUrl::parse(&cmd.location)?;
+    let table_path: ListingTableUrl = ListingTableUrl::parse(&cmd.location)?;
     let scheme = table_path.scheme();
     let url: &Url = table_path.as_ref();
 
@@ -54,8 +54,17 @@ async fn create_external_table(
             Arc::new(builder.build()?) as Arc<dyn ObjectStore>
         }
         "file" => {
-            let loacl = format!("/{}", &table_path.prefix().as_ref());
-            Arc::new(LocalFileSystem::new_with_prefix(Path::new(loacl.as_str()))?)
+            #[cfg(windows)]
+            {
+                let loacl = format!("{}", &table_path.prefix().as_ref());
+                Arc::new(LocalFileSystem::new_with_prefix(Path::new(loacl.as_str()))?)
+            }
+
+            #[cfg(unix)]
+            {
+                let loacl = format!("/{}", &table_path.prefix().as_ref());
+                Arc::new(LocalFileSystem::new_with_prefix(Path::new(loacl.as_str()))?)
+            }
         }
         _ => {
             // for other types, try to get from the object_store_registry

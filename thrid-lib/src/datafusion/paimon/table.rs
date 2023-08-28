@@ -267,6 +267,18 @@ mod tests {
         },
     };
 
+    fn get_local_file_system(url: &ListingTableUrl) -> String {
+        #[cfg(windows)]
+        {
+            format!("{}", &url.prefix().as_ref())
+        }
+
+        #[cfg(unix)]
+        {
+            format!("/{}", &url.prefix().as_ref())
+        }
+    }
+
     #[tokio::test]
     async fn object_store_test() -> Result<(), PaimonError> {
         // let path = "ods_mysql_paimon_points_5/snapshot/snapshot-5";
@@ -274,8 +286,9 @@ mod tests {
 
         let path = test_paimonm_table_path(path);
         let url = ListingTableUrl::parse(path.as_str())?;
-        let loacl = format!("/{}", &url.prefix().as_ref());
-        let store = LocalFileSystem::new_with_prefix(Path::new(loacl.as_str())).unwrap();
+        let local = get_local_file_system(&url);
+
+        let store = LocalFileSystem::new_with_prefix(Path::new(local.as_str())).unwrap();
 
         let _expected_data = r#"
         {
