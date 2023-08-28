@@ -182,7 +182,7 @@ fn hash_pk_for_batch(
         // 2: UPDATE_AFTER
         // 3: DELETE
         match kind_v {
-            0 | 1 | 2 => {
+            0..=2 => {
                 map.insert(hash, (seq_v, kind_v, idx));
             }
             3 => {
