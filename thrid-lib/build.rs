@@ -3,6 +3,7 @@ use std::process::Command;
 
 fn main() {
     tonic_build::configure()
+        .protoc_arg("--experimental_allow_proto3_optional")
         .out_dir("src/grpc/pb")
         .with_serde(
             &["store.Msg", "store.MsgId", "store.MsgTime"],

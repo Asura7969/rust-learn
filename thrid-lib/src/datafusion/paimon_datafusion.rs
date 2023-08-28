@@ -53,9 +53,10 @@ async fn create_external_table(
             let builder = get_oss_object_store_builder(url, cmd)?;
             Arc::new(builder.build()?) as Arc<dyn ObjectStore>
         }
-        "file" => Arc::new(LocalFileSystem::new_with_prefix(Path::new(
-            &table_path.prefix().as_ref(),
-        ))?),
+        "file" => {
+            let loacl = format!("/{}", &table_path.prefix().as_ref());
+            Arc::new(LocalFileSystem::new_with_prefix(Path::new(loacl.as_str()))?)
+        }
         _ => {
             // for other types, try to get from the object_store_registry
             state
@@ -92,7 +93,7 @@ mod tests {
 
         let sql = format!(
             "CREATE EXTERNAL TABLE ods_mysql_paimon_points_5 STORED AS PAIMON OPTIONS ('scan.snapshot-id' '5') LOCATION '{}'",
-            d.to_str().unwrap()
+            d.as_str()
         );
 
         println!("sql: {}", sql);

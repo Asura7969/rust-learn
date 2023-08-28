@@ -269,11 +269,13 @@ mod tests {
 
     #[tokio::test]
     async fn object_store_test() -> Result<(), PaimonError> {
-        let path = "ods_mysql_paimon_points_5/snapshot/snapshot-5";
+        // let path = "ods_mysql_paimon_points_5/snapshot/snapshot-5";
+        let path = "ods_mysql_paimon_points_5";
 
         let path = test_paimonm_table_path(path);
-        let url = ListingTableUrl::parse(path.to_str().unwrap())?;
-        let store = LocalFileSystem::new_with_prefix(Path::new(&url.prefix().as_ref())).unwrap();
+        let url = ListingTableUrl::parse(path.as_str())?;
+        let loacl = format!("/{}", &url.prefix().as_ref());
+        let store = LocalFileSystem::new_with_prefix(Path::new(loacl.as_str())).unwrap();
 
         let _expected_data = r#"
         {
@@ -294,7 +296,7 @@ mod tests {
           "watermark" : -9223372036854775808
         }"#;
 
-        let location = object_store::path::Path::from("");
+        let location = object_store::path::Path::from("snapshot/snapshot-5");
         let read_data = store.get(&location).await.unwrap().bytes().await.unwrap();
         let _d = String::from_utf8_lossy(read_data.split_at(read_data.len()).0);
         // assert_eq!(d.to_string().as_str(), expected_data);

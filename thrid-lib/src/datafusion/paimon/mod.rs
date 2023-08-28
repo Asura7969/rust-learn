@@ -5,12 +5,7 @@ use datafusion::{
 };
 use object_store::{local::LocalFileSystem, DynObjectStore};
 use serde::{Deserialize, Serialize};
-use std::{
-    collections::HashMap,
-    env,
-    path::{Path, PathBuf},
-    sync::Arc,
-};
+use std::{collections::HashMap, env, path::Path, sync::Arc};
 
 use self::{manifest_list::ManifestFileMeta, reader::FileFormat, utils::from};
 
@@ -128,14 +123,14 @@ pub(crate) fn to_schema_ref(schema: &mut PaimonSchema) -> SchemaRef {
 }
 
 #[allow(dead_code)]
-pub(crate) fn test_paimonm_table_path(table_name: &str) -> PathBuf {
+pub(crate) fn test_paimonm_table_path(table_name: &str) -> String {
     let mut config_path = env::current_dir().unwrap();
     config_path.push("src");
     config_path.push("test");
-    config_path.push("paimon");
-    config_path.push("default.db");
+    config_path.push("paimon/default.db");
     config_path.push(table_name);
-    config_path
+
+    config_path.display().to_string()
 }
 
 #[allow(dead_code)]
@@ -143,7 +138,7 @@ pub(crate) async fn test_local_store(root_path: &str) -> (ListingTableUrl, Arc<D
     // let path = "ods_mysql_paimon_points_5/snapshot/snapshot-5";
 
     let path = test_paimonm_table_path(root_path);
-    let url = ListingTableUrl::parse(path.to_str().unwrap()).unwrap();
-    let store = LocalFileSystem::new_with_prefix(Path::new(&url.prefix().as_ref())).unwrap();
+    let url = ListingTableUrl::parse(path.as_str()).unwrap();
+    let store = LocalFileSystem::new_with_prefix(Path::new(path.as_str())).unwrap();
     (url, Arc::new(store))
 }

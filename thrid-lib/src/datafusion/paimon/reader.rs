@@ -98,7 +98,7 @@ pub fn read_parquet(
         .iter()
         .filter(|m| m.kind == 0 && m.file.is_some())
         .map(|e| {
-            let p: Option<ObjectMeta> = e.to_object_meta(url.prefix().to_string().as_str());
+            let p: Option<ObjectMeta> = e.to_object_meta(url);
             p
         })
         .filter(|o| o.is_some())
