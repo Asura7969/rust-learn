@@ -100,6 +100,8 @@ mod tests {
         let ctx = context_with_delta_table_factory();
         let d = test_paimonm_table_path("ods_mysql_paimon_points_5");
 
+        println!("d: {}", d);
+
         let sql = format!(
             "CREATE EXTERNAL TABLE ods_mysql_paimon_points_5 STORED AS PAIMON OPTIONS ('scan.snapshot-id' '5') LOCATION '{}'",
             d.as_str()
@@ -112,13 +114,13 @@ mod tests {
             .await
             .expect("Failed to register table!");
 
-        // let batches = ctx
-        //     .sql("SELECT * FROM ods_mysql_paimon_points_5")
-        //     .await?
-        //     .collect()
-        //     .await?;
+        let batches = ctx
+            .sql("SELECT point_id,address FROM ods_mysql_paimon_points_5")
+            .await?
+            .collect()
+            .await?;
 
-        // arrow_print_batches(&batches).unwrap();
+        arrow_print_batches(&batches).unwrap();
 
         // let batch = &batches[0];
 

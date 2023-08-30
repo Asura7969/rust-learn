@@ -20,6 +20,7 @@ use datafusion::{
 };
 use datafusion_common::Result;
 use datafusion_common::Statistics;
+use itertools::Itertools;
 
 use super::PaimonSchema;
 
@@ -56,7 +57,6 @@ impl ExecutionPlan for MergeExec {
     }
 
     fn schema(&self) -> SchemaRef {
-        // TODO: 新增系统字段
         Arc::clone(&self.input.schema())
     }
 
@@ -117,9 +117,7 @@ async fn merge_batch(
     let records: Vec<RecordBatch> = collect(input, context.clone()).await?;
     let batch = concat_batches(&schema, records.iter())?;
 
-    // let options = paimon_schema.options.clone();
     let pk = paimon_schema.primary_keys.clone();
-    // let partition_keys = paimon_schema.partition_keys.clone();
 
     if pk.is_empty() {
         // Appendonly
@@ -143,8 +141,16 @@ async fn merge_batch(
         .collect::<Vec<usize>>();
     let idx: Vec<_> = (0..count).map(|x| idx.contains(&x)).collect();
     let merge_filter: BooleanArray = BooleanArray::from(idx);
-    let batch = filter_record_batch(&batch, &merge_filter)?;
+
+    let project_idx = delete_system_fields(pk.len() + 2, batch.schema().fields.len());
+    let batch = filter_record_batch(&batch.project(&project_idx)?, &merge_filter)?;
     Ok(batch)
+}
+
+fn delete_system_fields(system_fields_len: usize, all_fields_count: usize) -> Vec<usize> {
+    (0..all_fields_count)
+        .filter(|i| *i >= system_fields_len)
+        .collect_vec()
 }
 
 fn hash_pk_for_batch(

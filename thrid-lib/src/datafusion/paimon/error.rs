@@ -19,6 +19,9 @@ pub enum PaimonError {
     #[error("apache_avro error")]
     AvroError(#[from] apache_avro::Error),
 
+    #[error("apache arrow error")]
+    ArrowError(#[from] arrow::error::ArrowError),
+
     // #[error("unknown data store error")]
     // Unknown,
     #[error(transparent)]

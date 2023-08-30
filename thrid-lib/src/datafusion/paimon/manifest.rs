@@ -21,15 +21,10 @@ pub struct ManifestEntry {
 }
 
 impl ManifestEntry {
-    pub fn to_object_meta(&self, url: &ListingTableUrl) -> Option<ObjectMeta> {
+    pub fn to_object_meta(&self, _url: &ListingTableUrl) -> Option<ObjectMeta> {
         match &self.file {
             Some(file) => {
-                let path = format!(
-                    "{}/bucket-{}/{}",
-                    url.prefix().to_string().as_str(),
-                    self.bucket,
-                    file.file_name
-                );
+                let path = format!("/bucket-{}/{}", self.bucket, file.file_name);
                 let creation_time = Utc.timestamp_opt(file.creation_time, 0).unwrap();
                 let location = Path::from(path);
                 Some(ObjectMeta {

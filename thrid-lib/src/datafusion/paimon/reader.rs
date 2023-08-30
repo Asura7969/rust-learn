@@ -13,7 +13,7 @@ use crate::datafusion::paimon::ManifestFileMeta;
 
 use super::error::PaimonError;
 use super::manifest::ManifestEntry;
-use super::{to_schema_ref, PaimonSchema};
+use super::{add_system_fields, PaimonSchema};
 use object_store::{DynObjectStore, ObjectMeta};
 pub enum FileFormat {
     #[allow(dead_code)]
@@ -104,7 +104,7 @@ pub fn read_parquet(
         .filter(|o| o.is_some())
         .map(|o| Into::into(o.unwrap()))
         .collect::<Vec<PartitionedFile>>();
-    let file_schema = to_schema_ref(file_schema);
+    let file_schema = add_system_fields(file_schema.arrow_schema())?;
     // Create a async parquet reader builder with batch_size.
     // batch_size is the number of rows to read up to buffer once from pages, defaults to 1024
 
@@ -135,8 +135,7 @@ mod tests {
     use super::*;
     use crate::datafusion::paimon::{
         error::PaimonError, exec::MergeExec, manifest::ManifestEntry, snapshot::SnapshotManager,
-        test_local_store, test_paimonm_table_path, to_schema_ref, PartitionKeys, PrimaryKeys,
-        WriteMode,
+        test_local_store, test_paimonm_table_path, PartitionKeys, PrimaryKeys, WriteMode,
     };
     use arrow::util::pretty::print_batches as arrow_print_batches;
     use datafusion::{
@@ -156,38 +155,8 @@ mod tests {
     use tokio::fs::File;
 
     #[tokio::test]
-    async fn snapshot_manager_test() -> Result<(), PaimonError> {
-        let path = "ods_mysql_paimon_points_5";
-
-        let (url, storage) = test_local_store(path).await;
-
-        let manager = SnapshotManager::new(url.clone(), storage.clone());
-
-        // let snapshot = manager.snapshot(5).unwrap();
-        let snapshot = manager.latest_snapshot().await.unwrap();
-
-        let mut paimon_schema = snapshot.get_schema(&storage).await.unwrap();
-        let entries = snapshot.base(&storage).await.unwrap();
-        let parquet_exec = read_parquet(&url, &entries, &mut paimon_schema, None, &[], None)?;
-
-        let session_ctx = SessionContext::default();
-        let task_ctx = session_ctx.task_ctx();
-
-        let read: Vec<datafusion::arrow::record_batch::RecordBatch> = collect(
-            Arc::new(MergeExec::new(paimon_schema, Arc::new(parquet_exec))),
-            task_ctx,
-        )
-        .await
-        .unwrap();
-        arrow_print_batches(&read).unwrap();
-        Ok(())
-    }
-
-    #[tokio::test]
     async fn read_manifest_test() -> Result<(), PaimonError> {
         let (_url, storage) = test_local_store("ods_mysql_paimon_points_5").await;
-        // let path = "manifest\\manifest-5246a8f1-fdf4-4524-a2a2-fcd99dc08a1b-0";
-        // ;
         let manifest = read_avro::<ManifestEntry>(
             &storage,
             &Path::from_iter(vec![

@@ -7,7 +7,7 @@ use object_store::{local::LocalFileSystem, DynObjectStore};
 use serde::{Deserialize, Serialize};
 use std::{collections::HashMap, env, path::Path, sync::Arc};
 
-use self::{manifest_list::ManifestFileMeta, reader::FileFormat, utils::from};
+use self::{error::PaimonError, manifest_list::ManifestFileMeta, reader::FileFormat, utils::from};
 
 pub mod error;
 mod example;
@@ -79,6 +79,16 @@ impl PaimonSchema {
             None => FileFormat::Orc,
         }
     }
+
+    pub fn arrow_schema(&mut self) -> Schema {
+        self.fields.sort_by(|a, b| a.id.cmp(&b.id));
+        let fields = self
+            .fields
+            .iter()
+            .map(|field| field.to_arrow_field())
+            .collect::<Vec<AField>>();
+        Schema::new(fields)
+    }
 }
 
 #[derive(Serialize, Deserialize, PartialEq, Eq, Debug, Clone)]
@@ -106,20 +116,17 @@ pub struct PartitionStat {
     null_counts: Option<Vec<i64>>,
 }
 
-pub(crate) fn to_schema_ref(schema: &mut PaimonSchema) -> SchemaRef {
-    schema.fields.sort_by(|a, b| a.id.cmp(&b.id));
-    let mut fields = schema
-        .fields
-        .iter()
-        .map(|field| field.to_arrow_field())
-        .collect::<Vec<AField>>();
-    let mut system_fields = vec![
-        AField::new("_KEY_point_id", DataType::Utf8, false),
-        AField::new("_SEQUENCE_NUMBER", DataType::UInt64, false),
-        AField::new("_VALUE_KIND", DataType::Int8, false),
-    ];
-    system_fields.append(&mut fields);
-    SchemaRef::new(Schema::new(system_fields))
+pub(crate) fn add_system_fields(schema: Schema) -> Result<SchemaRef, PaimonError> {
+    Schema::try_merge(vec![
+        Schema::new(vec![
+            AField::new("_KEY_point_id", DataType::Utf8, false),
+            AField::new("_SEQUENCE_NUMBER", DataType::UInt64, false),
+            AField::new("_VALUE_KIND", DataType::Int8, false),
+        ]),
+        schema,
+    ])
+    .map(SchemaRef::new)
+    .map_err(PaimonError::ArrowError)
 }
 
 #[allow(dead_code)]
