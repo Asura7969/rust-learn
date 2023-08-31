@@ -26,6 +26,7 @@
 * [nom](https://crates.io/crates/nom)
 * [tempfile](https://crates.io/crates/tempfile)
 * [Turmoil: 分布式测试框架](https://github.com/tokio-rs/turmoil/tree/main)
+* [futures-rs](https://zhuanlan.zhihu.com/p/606989449)
 
 ## 项目规范
 
