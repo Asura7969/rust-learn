@@ -38,8 +38,8 @@ pub struct MsgTime {
 /// Generated client implementations.
 pub mod store_service_client {
     #![allow(unused_variables, dead_code, missing_docs, clippy::let_unit_value)]
-    use tonic::codegen::*;
     use tonic::codegen::http::Uri;
+    use tonic::codegen::*;
     #[derive(Debug, Clone)]
     pub struct StoreServiceClient<T> {
         inner: tonic::client::Grpc<T>,
@@ -83,9 +83,8 @@ pub mod store_service_client {
                     <T as tonic::client::GrpcService<tonic::body::BoxBody>>::ResponseBody,
                 >,
             >,
-            <T as tonic::codegen::Service<
-                http::Request<tonic::body::BoxBody>,
-            >>::Error: Into<StdError> + Send + Sync,
+            <T as tonic::codegen::Service<http::Request<tonic::body::BoxBody>>>::Error:
+                Into<StdError> + Send + Sync,
         {
             StoreServiceClient::new(InterceptedService::new(inner, interceptor))
         }
@@ -108,15 +107,12 @@ pub mod store_service_client {
             &mut self,
             request: impl tonic::IntoRequest<super::MsgId>,
         ) -> Result<tonic::Response<super::Msg>, tonic::Status> {
-            self.inner
-                .ready()
-                .await
-                .map_err(|e| {
-                    tonic::Status::new(
-                        tonic::Code::Unknown,
-                        format!("Service was not ready: {}", e.into()),
-                    )
-                })?;
+            self.inner.ready().await.map_err(|e| {
+                tonic::Status::new(
+                    tonic::Code::Unknown,
+                    format!("Service was not ready: {}", e.into()),
+                )
+            })?;
             let codec = tonic::codec::ProstCodec::default();
             let path = http::uri::PathAndQuery::from_static("/store.StoreService/get");
             self.inner.unary(request.into_request(), path, codec).await
@@ -125,15 +121,12 @@ pub mod store_service_client {
             &mut self,
             request: impl tonic::IntoRequest<super::Msg>,
         ) -> Result<tonic::Response<bool>, tonic::Status> {
-            self.inner
-                .ready()
-                .await
-                .map_err(|e| {
-                    tonic::Status::new(
-                        tonic::Code::Unknown,
-                        format!("Service was not ready: {}", e.into()),
-                    )
-                })?;
+            self.inner.ready().await.map_err(|e| {
+                tonic::Status::new(
+                    tonic::Code::Unknown,
+                    format!("Service was not ready: {}", e.into()),
+                )
+            })?;
             let codec = tonic::codec::ProstCodec::default();
             let path = http::uri::PathAndQuery::from_static("/store.StoreService/send");
             self.inner.unary(request.into_request(), path, codec).await
@@ -142,64 +135,48 @@ pub mod store_service_client {
             &mut self,
             request: impl tonic::IntoRequest<super::MsgId>,
         ) -> Result<tonic::Response<bool>, tonic::Status> {
-            self.inner
-                .ready()
-                .await
-                .map_err(|e| {
-                    tonic::Status::new(
-                        tonic::Code::Unknown,
-                        format!("Service was not ready: {}", e.into()),
-                    )
-                })?;
+            self.inner.ready().await.map_err(|e| {
+                tonic::Status::new(
+                    tonic::Code::Unknown,
+                    format!("Service was not ready: {}", e.into()),
+                )
+            })?;
             let codec = tonic::codec::ProstCodec::default();
-            let path = http::uri::PathAndQuery::from_static(
-                "/store.StoreService/delete",
-            );
+            let path = http::uri::PathAndQuery::from_static("/store.StoreService/delete");
             self.inner.unary(request.into_request(), path, codec).await
         }
         pub async fn subscribe(
             &mut self,
             request: impl tonic::IntoRequest<super::MsgId>,
-        ) -> Result<
-            tonic::Response<tonic::codec::Streaming<super::Msg>>,
-            tonic::Status,
-        > {
-            self.inner
-                .ready()
-                .await
-                .map_err(|e| {
-                    tonic::Status::new(
-                        tonic::Code::Unknown,
-                        format!("Service was not ready: {}", e.into()),
-                    )
-                })?;
+        ) -> Result<tonic::Response<tonic::codec::Streaming<super::Msg>>, tonic::Status> {
+            self.inner.ready().await.map_err(|e| {
+                tonic::Status::new(
+                    tonic::Code::Unknown,
+                    format!("Service was not ready: {}", e.into()),
+                )
+            })?;
             let codec = tonic::codec::ProstCodec::default();
-            let path = http::uri::PathAndQuery::from_static(
-                "/store.StoreService/subscribe",
-            );
-            self.inner.server_streaming(request.into_request(), path, codec).await
+            let path = http::uri::PathAndQuery::from_static("/store.StoreService/subscribe");
+            self.inner
+                .server_streaming(request.into_request(), path, codec)
+                .await
         }
         pub async fn subscribe_with_time(
             &mut self,
             request: impl tonic::IntoRequest<super::MsgTime>,
-        ) -> Result<
-            tonic::Response<tonic::codec::Streaming<super::Msg>>,
-            tonic::Status,
-        > {
-            self.inner
-                .ready()
-                .await
-                .map_err(|e| {
-                    tonic::Status::new(
-                        tonic::Code::Unknown,
-                        format!("Service was not ready: {}", e.into()),
-                    )
-                })?;
+        ) -> Result<tonic::Response<tonic::codec::Streaming<super::Msg>>, tonic::Status> {
+            self.inner.ready().await.map_err(|e| {
+                tonic::Status::new(
+                    tonic::Code::Unknown,
+                    format!("Service was not ready: {}", e.into()),
+                )
+            })?;
             let codec = tonic::codec::ProstCodec::default();
-            let path = http::uri::PathAndQuery::from_static(
-                "/store.StoreService/subscribeWithTime",
-            );
-            self.inner.server_streaming(request.into_request(), path, codec).await
+            let path =
+                http::uri::PathAndQuery::from_static("/store.StoreService/subscribeWithTime");
+            self.inner
+                .server_streaming(request.into_request(), path, codec)
+                .await
         }
     }
 }
@@ -223,9 +200,7 @@ pub mod store_service_server {
             request: tonic::Request<super::MsgId>,
         ) -> Result<tonic::Response<bool>, tonic::Status>;
         /// Server streaming response type for the subscribe method.
-        type subscribeStream: futures_core::Stream<
-                Item = Result<super::Msg, tonic::Status>,
-            >
+        type subscribeStream: futures_core::Stream<Item = Result<super::Msg, tonic::Status>>
             + Send
             + 'static;
         async fn subscribe(
@@ -233,9 +208,7 @@ pub mod store_service_server {
             request: tonic::Request<super::MsgId>,
         ) -> Result<tonic::Response<Self::subscribeStream>, tonic::Status>;
         /// Server streaming response type for the subscribeWithTime method.
-        type subscribeWithTimeStream: futures_core::Stream<
-                Item = Result<super::Msg, tonic::Status>,
-            >
+        type subscribeWithTimeStream: futures_core::Stream<Item = Result<super::Msg, tonic::Status>>
             + Send
             + 'static;
         async fn subscribe_with_time(
@@ -262,10 +235,7 @@ pub mod store_service_server {
                 send_compression_encodings: Default::default(),
             }
         }
-        pub fn with_interceptor<F>(
-            inner: T,
-            interceptor: F,
-        ) -> InterceptedService<Self, F>
+        pub fn with_interceptor<F>(inner: T, interceptor: F) -> InterceptedService<Self, F>
         where
             F: tonic::service::Interceptor,
         {
@@ -293,10 +263,7 @@ pub mod store_service_server {
         type Response = http::Response<tonic::body::BoxBody>;
         type Error = std::convert::Infallible;
         type Future = BoxFuture<Self::Response, Self::Error>;
-        fn poll_ready(
-            &mut self,
-            _cx: &mut Context<'_>,
-        ) -> Poll<Result<(), Self::Error>> {
+        fn poll_ready(&mut self, _cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
             Poll::Ready(Ok(()))
         }
         fn call(&mut self, req: http::Request<B>) -> Self::Future {
@@ -305,17 +272,10 @@ pub mod store_service_server {
                 "/store.StoreService/get" => {
                     #[allow(non_camel_case_types)]
                     struct getSvc<T: StoreService>(pub Arc<T>);
-                    impl<T: StoreService> tonic::server::UnaryService<super::MsgId>
-                    for getSvc<T> {
+                    impl<T: StoreService> tonic::server::UnaryService<super::MsgId> for getSvc<T> {
                         type Response = super::Msg;
-                        type Future = BoxFuture<
-                            tonic::Response<Self::Response>,
-                            tonic::Status,
-                        >;
-                        fn call(
-                            &mut self,
-                            request: tonic::Request<super::MsgId>,
-                        ) -> Self::Future {
+                        type Future = BoxFuture<tonic::Response<Self::Response>, tonic::Status>;
+                        fn call(&mut self, request: tonic::Request<super::MsgId>) -> Self::Future {
                             let inner = self.0.clone();
                             let fut = async move { (*inner).get(request).await };
                             Box::pin(fut)
@@ -328,11 +288,10 @@ pub mod store_service_server {
                         let inner = inner.0;
                         let method = getSvc(inner);
                         let codec = tonic::codec::ProstCodec::default();
-                        let mut grpc = tonic::server::Grpc::new(codec)
-                            .apply_compression_config(
-                                accept_compression_encodings,
-                                send_compression_encodings,
-                            );
+                        let mut grpc = tonic::server::Grpc::new(codec).apply_compression_config(
+                            accept_compression_encodings,
+                            send_compression_encodings,
+                        );
                         let res = grpc.unary(method, req).await;
                         Ok(res)
                     };
@@ -341,17 +300,10 @@ pub mod store_service_server {
                 "/store.StoreService/send" => {
                     #[allow(non_camel_case_types)]
                     struct sendSvc<T: StoreService>(pub Arc<T>);
-                    impl<T: StoreService> tonic::server::UnaryService<super::Msg>
-                    for sendSvc<T> {
+                    impl<T: StoreService> tonic::server::UnaryService<super::Msg> for sendSvc<T> {
                         type Response = bool;
-                        type Future = BoxFuture<
-                            tonic::Response<Self::Response>,
-                            tonic::Status,
-                        >;
-                        fn call(
-                            &mut self,
-                            request: tonic::Request<super::Msg>,
-                        ) -> Self::Future {
+                        type Future = BoxFuture<tonic::Response<Self::Response>, tonic::Status>;
+                        fn call(&mut self, request: tonic::Request<super::Msg>) -> Self::Future {
                             let inner = self.0.clone();
                             let fut = async move { (*inner).send(request).await };
                             Box::pin(fut)
@@ -364,11 +316,10 @@ pub mod store_service_server {
                         let inner = inner.0;
                         let method = sendSvc(inner);
                         let codec = tonic::codec::ProstCodec::default();
-                        let mut grpc = tonic::server::Grpc::new(codec)
-                            .apply_compression_config(
-                                accept_compression_encodings,
-                                send_compression_encodings,
-                            );
+                        let mut grpc = tonic::server::Grpc::new(codec).apply_compression_config(
+                            accept_compression_encodings,
+                            send_compression_encodings,
+                        );
                         let res = grpc.unary(method, req).await;
                         Ok(res)
                     };
@@ -377,17 +328,10 @@ pub mod store_service_server {
                 "/store.StoreService/delete" => {
                     #[allow(non_camel_case_types)]
                     struct deleteSvc<T: StoreService>(pub Arc<T>);
-                    impl<T: StoreService> tonic::server::UnaryService<super::MsgId>
-                    for deleteSvc<T> {
+                    impl<T: StoreService> tonic::server::UnaryService<super::MsgId> for deleteSvc<T> {
                         type Response = bool;
-                        type Future = BoxFuture<
-                            tonic::Response<Self::Response>,
-                            tonic::Status,
-                        >;
-                        fn call(
-                            &mut self,
-                            request: tonic::Request<super::MsgId>,
-                        ) -> Self::Future {
+                        type Future = BoxFuture<tonic::Response<Self::Response>, tonic::Status>;
+                        fn call(&mut self, request: tonic::Request<super::MsgId>) -> Self::Future {
                             let inner = self.0.clone();
                             let fut = async move { (*inner).delete(request).await };
                             Box::pin(fut)
@@ -400,11 +344,10 @@ pub mod store_service_server {
                         let inner = inner.0;
                         let method = deleteSvc(inner);
                         let codec = tonic::codec::ProstCodec::default();
-                        let mut grpc = tonic::server::Grpc::new(codec)
-                            .apply_compression_config(
-                                accept_compression_encodings,
-                                send_compression_encodings,
-                            );
+                        let mut grpc = tonic::server::Grpc::new(codec).apply_compression_config(
+                            accept_compression_encodings,
+                            send_compression_encodings,
+                        );
                         let res = grpc.unary(method, req).await;
                         Ok(res)
                     };
@@ -413,20 +356,12 @@ pub mod store_service_server {
                 "/store.StoreService/subscribe" => {
                     #[allow(non_camel_case_types)]
                     struct subscribeSvc<T: StoreService>(pub Arc<T>);
-                    impl<
-                        T: StoreService,
-                    > tonic::server::ServerStreamingService<super::MsgId>
-                    for subscribeSvc<T> {
+                    impl<T: StoreService> tonic::server::ServerStreamingService<super::MsgId> for subscribeSvc<T> {
                         type Response = super::Msg;
                         type ResponseStream = T::subscribeStream;
-                        type Future = BoxFuture<
-                            tonic::Response<Self::ResponseStream>,
-                            tonic::Status,
-                        >;
-                        fn call(
-                            &mut self,
-                            request: tonic::Request<super::MsgId>,
-                        ) -> Self::Future {
+                        type Future =
+                            BoxFuture<tonic::Response<Self::ResponseStream>, tonic::Status>;
+                        fn call(&mut self, request: tonic::Request<super::MsgId>) -> Self::Future {
                             let inner = self.0.clone();
                             let fut = async move { (*inner).subscribe(request).await };
                             Box::pin(fut)
@@ -439,11 +374,10 @@ pub mod store_service_server {
                         let inner = inner.0;
                         let method = subscribeSvc(inner);
                         let codec = tonic::codec::ProstCodec::default();
-                        let mut grpc = tonic::server::Grpc::new(codec)
-                            .apply_compression_config(
-                                accept_compression_encodings,
-                                send_compression_encodings,
-                            );
+                        let mut grpc = tonic::server::Grpc::new(codec).apply_compression_config(
+                            accept_compression_encodings,
+                            send_compression_encodings,
+                        );
                         let res = grpc.server_streaming(method, req).await;
                         Ok(res)
                     };
@@ -452,24 +386,19 @@ pub mod store_service_server {
                 "/store.StoreService/subscribeWithTime" => {
                     #[allow(non_camel_case_types)]
                     struct subscribeWithTimeSvc<T: StoreService>(pub Arc<T>);
-                    impl<
-                        T: StoreService,
-                    > tonic::server::ServerStreamingService<super::MsgTime>
-                    for subscribeWithTimeSvc<T> {
+                    impl<T: StoreService> tonic::server::ServerStreamingService<super::MsgTime>
+                        for subscribeWithTimeSvc<T>
+                    {
                         type Response = super::Msg;
                         type ResponseStream = T::subscribeWithTimeStream;
-                        type Future = BoxFuture<
-                            tonic::Response<Self::ResponseStream>,
-                            tonic::Status,
-                        >;
+                        type Future =
+                            BoxFuture<tonic::Response<Self::ResponseStream>, tonic::Status>;
                         fn call(
                             &mut self,
                             request: tonic::Request<super::MsgTime>,
                         ) -> Self::Future {
                             let inner = self.0.clone();
-                            let fut = async move {
-                                (*inner).subscribe_with_time(request).await
-                            };
+                            let fut = async move { (*inner).subscribe_with_time(request).await };
                             Box::pin(fut)
                         }
                     }
@@ -480,28 +409,23 @@ pub mod store_service_server {
                         let inner = inner.0;
                         let method = subscribeWithTimeSvc(inner);
                         let codec = tonic::codec::ProstCodec::default();
-                        let mut grpc = tonic::server::Grpc::new(codec)
-                            .apply_compression_config(
-                                accept_compression_encodings,
-                                send_compression_encodings,
-                            );
+                        let mut grpc = tonic::server::Grpc::new(codec).apply_compression_config(
+                            accept_compression_encodings,
+                            send_compression_encodings,
+                        );
                         let res = grpc.server_streaming(method, req).await;
                         Ok(res)
                     };
                     Box::pin(fut)
                 }
-                _ => {
-                    Box::pin(async move {
-                        Ok(
-                            http::Response::builder()
-                                .status(200)
-                                .header("grpc-status", "12")
-                                .header("content-type", "application/grpc")
-                                .body(empty_body())
-                                .unwrap(),
-                        )
-                    })
-                }
+                _ => Box::pin(async move {
+                    Ok(http::Response::builder()
+                        .status(200)
+                        .header("grpc-status", "12")
+                        .header("content-type", "application/grpc")
+                        .body(empty_body())
+                        .unwrap())
+                }),
             }
         }
     }
