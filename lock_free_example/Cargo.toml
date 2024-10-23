@@ -1,0 +1,10 @@
+[package]
+name = "lock_free_example"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+crossbeam = "0.8.4"
+crossbeam-epoch = "0.9.18"
+crossbeam-queue = "0.3.11"
+rand = "0.8"

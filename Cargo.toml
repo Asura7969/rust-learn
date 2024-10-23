@@ -1,6 +1,6 @@
 [workspace]
 members = [
-    "base",
+    "base", "iot", "lock_free_example",
     "thrid-lib"
 ]
 resolver = "2"
