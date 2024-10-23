@@ -43,6 +43,9 @@ async fn main() {
     // println!("All tasks completed");
 
     /// stream example
+    if let None = std::env::var_os("RUST_LOG") {
+        std::env::set_var("RUST_LOG", "info")
+    }
     env_logger::init();
     // Create the DataAvailable stream
     let mut data_available = DataAvailable::new();
