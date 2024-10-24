@@ -7,6 +7,7 @@ use crate::stream::DataAvailable;
 mod collector;
 mod producer;
 mod stream;
+mod base_producer;
 
 #[tokio::main(flavor = "multi_thread", worker_threads = 1)]
 async fn main() {
