@@ -2,6 +2,7 @@ use std::future::Future;
 use std::pin::Pin;
 use std::task::{Context, Poll};
 use pin_project::pin_project;
+use tokio_stream::Stream;
 use crate::producer::Producer;
 
 #[pin_project]
@@ -140,4 +141,120 @@ where
         }
     }
 }
+
+
+#[pin_project]
+pub struct StreamCollector<T, P>
+where
+    P: Stream<Item = T>
+{
+    #[pin]
+    producer: P,
+    collected_data: Vec<T>,
+}
+
+impl<T, P> StreamCollector<T, P>
+where
+    P: Stream<Item = T>
+{
+    pub fn new(producer: P) -> Self {
+        Self {
+            producer,
+            collected_data: Vec::new(),
+        }
+    }
+}
+
+
+impl<T, P> Future for StreamCollector<T, P>
+where
+    P: Stream<Item = T> + Unpin,
+{
+    type Output = Vec<T>;
+
+    fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+        let mut this = self.project();
+        loop {
+            match this.producer.as_mut().poll_next(cx) {
+                Poll::Ready(Some(item)) => {
+                    this.collected_data.push(item);
+                }
+                Poll::Ready(None) => {
+                    return Poll::Ready(std::mem::take(this.collected_data));
+                }
+                Poll::Pending => {
+                    return Poll::Pending;
+                }
+            }
+        }
+    }
+}
+
+
+mod test {
+    use log::info;
+    use tokio::sync::mpsc;
+    use crate::base_producer::HasErrorValue;
+    use crate::stream::DataAvailable;
+    use super::*;
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+    async fn test_stream_collect() {
+        if let None = std::env::var_os("RUST_LOG") {
+            std::env::set_var("RUST_LOG", "info")
+        }
+        env_logger::init();
+        let (tx, rx) = mpsc::channel(1);
+
+        // Create the Producer with a simple post-processing function (e.g., add 1 to an integer)
+        let producer = crate::base_producer::Producer::new(DataAvailable::new(), rx, Box::new(|x: i32| x + 1));
+
+        // Spawn a task to send data into the channel and send an error
+        tokio::spawn(async move {
+            for i in 0i32..900 {
+                if i == 11 {
+                    let err = i.into_error_value();
+                    tx.send(err).await.unwrap();
+                } else if let Err(_e) = tx.send(i).await {
+                    break; // Stop sending if the channel is closed
+                }
+            }
+        });
+
+        // Create a Collector to collect all the processed data into a Vec
+        let collector = StreamCollector::new(producer);
+
+        // Wait for the Collector to finish and return the collected Vec
+        let collected_data = collector.await;
+
+        info!("Collected data: {:?}", collected_data);
+    }
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 

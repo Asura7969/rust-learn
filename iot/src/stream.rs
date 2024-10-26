@@ -74,3 +74,27 @@ impl Stream for DataAvailable {
         }
     }
 }
+
+
+mod test {
+    use log::info;
+    use tokio_stream::StreamExt;
+    use super::*;
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+    async fn test_data_available() {
+        /// stream example
+        if let None = std::env::var_os("RUST_LOG") {
+            std::env::set_var("RUST_LOG", "info")
+        }
+        env_logger::init();
+        // Create the DataAvailable stream
+        let mut data_available = DataAvailable::new();
+        // Consume the stream and print the result
+        let mut i = 0;
+        while let Some(_data) = data_available.next().await {
+            info!("Data available: {}", i);
+            i += 1;
+        }
+    }
+}

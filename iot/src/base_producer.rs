@@ -63,14 +63,21 @@ where
 
     fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         let mut this = self.project();
-         match this.data_available.poll_next(cx) {
-             Poll::Ready(Some(true)) => {
+        // First, poll the DataAvailable stream to check if data is ready to be processed
+        match this.data_available.poll_next(cx) {
+            // DataAvailable indicates data is ready
+            Poll::Ready(Some(true)) => {
+                // Poll the receiver (mpsc channel) to get the next data item
                 match this.receiver.poll_recv(cx) {
+                    // Data is available on the channel
                     Poll::Ready(Some(data)) => {
                         if data.is_error_value() {
+                            // Sender informs us about an error condition
                             Poll::Ready(None)
                         } else {
+                            // Apply the post-processing function to the data and return it
                             Poll::Ready(Some((this.post_process_fn)(data)))
+                            // Return the processed data
                         }
                     }
                     Poll::Ready(None) => {
@@ -81,19 +88,19 @@ where
                         Poll::Pending // Still waiting for data, return Poll::Pending
                     }
                 }
-             }
-             // DataAvailable indicates data is not yet available, return Poll::Pending
-             Poll::Ready(Some(false)) => {
-                 Poll::Pending // Wait for data to become available
-             }
-             // DataAvailable is still in progress, waiting for the next cycle
-             Poll::Pending => {
-                 Poll::Pending // DataAvailable is still pending, so we also return Poll::Pending
-             }
-             // DataAvailable stream has ended, no more items will be produced
-             Poll::Ready(None) => {
-                 Poll::Ready(None) // End of stream
-             }
+            }
+            // DataAvailable indicates data is not yet available, return Poll::Pending
+            Poll::Ready(Some(false)) => {
+                Poll::Pending // Wait for data to become available
+            }
+            // DataAvailable is still in progress, waiting for the next cycle
+            Poll::Pending => {
+                Poll::Pending // DataAvailable is still pending, so we also return Poll::Pending
+            }
+            // DataAvailable stream has ended, no more items will be produced
+            Poll::Ready(None) => {
+                Poll::Ready(None) // End of stream
+            }
          }
     }
 }
